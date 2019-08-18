@@ -103,12 +103,12 @@ void PodParser::parse_line(const std::string& line)
         case '\t': // Verbatim encountered
             // Note: Subsequent lines of verbatim don't have to be indented!
             m_verbatim_lead_space = count_leading_whitespace(line); // For stripping leading spaces later on
-            m_current_buffer = line;
+            m_current_buffer = line + "\n"; // Re-add missing end-of-line
             m_mode = mode::verbatim;
             break;
         default: // Ordinary paragraph encountered
             m_mode = mode::ordinary;
-            m_current_buffer = line;
+            m_current_buffer = line + " "; // Replace end-of-line with space
             break;
         }
         break;
@@ -118,6 +118,9 @@ void PodParser::parse_line(const std::string& line)
 // Note: `ordinary' is already cleared from newlines.
 void PodParser::parse_ordinary(std::string ordinary)
 {
+    m_ast.push_back(new PodNodeParaStart());
+    parse_inline(ordinary);
+    m_ast.push_back(new PodNodeParaEnd());
 }
 
 // Note: `command' is already cleared from newlines.
@@ -237,8 +240,6 @@ void PodParser::parse_command(std::string command)
 
 void PodParser::parse_verbatim(std::string verbatim)
 {
-
-
     // Strip leading white space
     if (m_verbatim_lead_space > 0) {
         std::stringstream ss(verbatim);
@@ -259,7 +260,7 @@ void PodParser::parse_verbatim(std::string verbatim)
         p_prev_verb->AddText(verbatim);
     }
     else
-        m_ast.push_back(new PodNodeVerbatim(verbatim.substr(1)));
+        m_ast.push_back(new PodNodeVerbatim(verbatim));
 }
 
 void PodParser::parse_data(std::string data)
@@ -273,6 +274,7 @@ void PodParser::parse_data(std::string data)
 void PodParser::parse_inline(std::string para)
 {
     // TODO: Do the actual parsing for italic et al.
+    // TODO: Escape HTML chars <, > and &.
     m_ast.push_back(new PodNodeInlineText(para));
 }
 
@@ -291,6 +293,7 @@ std::string PodHTMLFormatter::FormatHTML()
 
     for (const PodNode* p_node: m_ast) {
         result += p_node->ToHTML();
+        result += "\n";
     }
 
     return result;
