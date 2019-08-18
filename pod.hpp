@@ -155,5 +155,7 @@ private:
 size_t count_leading_whitespace(const std::string& str);
 // Joins all the strings in `vec' into one string separated by `separator'.
 std::string join_vectorstr(const std::vector<std::string>& vec, const std::string& separator);
+// Mask all occurences of &, <, and >.
+void html_escape(std::string& str);
 
 #endif /* SCRDG_POD_HPP */

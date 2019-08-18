@@ -275,6 +275,7 @@ void PodParser::parse_inline(std::string para)
 {
     // TODO: Do the actual parsing for italic et al.
     // TODO: Escape HTML chars <, > and &.
+    html_escape(para);
     m_ast.push_back(new PodNodeInlineText(para));
 }
 
@@ -430,4 +431,15 @@ std::string join_vectorstr(const std::vector<std::string>& vec, const std::strin
     }
 
     return result;
+}
+
+void html_escape(std::string& str)
+{
+    size_t pos = 0;
+    while ((pos = str.find("&")) != std::string::npos)
+        str.replace(pos, 1, "&amp;");
+    while ((pos = str.find("<")) != std::string::npos)
+        str.replace(pos, 1, "&lt;");
+    while ((pos = str.find(">")) != std::string::npos)
+        str.replace(pos, 1, "&gt;");
 }
