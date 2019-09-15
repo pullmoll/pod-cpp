@@ -86,6 +86,74 @@ private:
     std::string m_text;
 };
 
+enum class mtype {
+    italic,
+    bold,
+    code,
+    filename
+};
+
+class PodNodeInlineMarkupStart: public PodNode
+{
+public:
+    PodNodeInlineMarkupStart(mtype type);
+private:
+    mtype m_mtype;
+};
+
+class PodNodeInlineMarkupEnd: public PodNode
+{
+public:
+    PodNodeInlineMarkupEnd(mtype type);
+private:
+    mtype m_mtype;
+};
+
+class PodNodeInlineItalicStart: public PodNode
+{
+public:
+    PodNodeInlineItalicStart(std::string text);
+    virtual std::string ToHTML() const;
+private:
+    std::string m_text;
+};
+
+class PodNodeInlineBoldStart: public PodNode
+{
+public:
+    PodNodeInlineBoldStart(std::string text);
+    virtual std::string ToHTML() const;
+private:
+    std::string m_text;
+};
+
+class PodNodeInlineBoldEnd: public PodNode
+{
+public:
+    PodNodeInlineBoldEnd(std::string text);
+    virtual std::string ToHTML() const;
+private:
+    std::string m_text;
+};
+
+class PodNodeInlineCodeStart: public PodNode
+{
+public:
+    PodNodeInlineCodeStart(std::string text);
+    virtual std::string ToHTML() const;
+private:
+    std::string m_text;
+};
+
+class PodNodeInlineCodeEnd: public PodNode
+{
+public:
+    PodNodeInlineCodeEnd(std::string text);
+    virtual std::string ToHTML() const;
+private:
+    std::string m_text;
+};
+
 class PodNodeData: public PodNode
 {
 public:

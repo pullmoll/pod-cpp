@@ -274,8 +274,66 @@ void PodParser::parse_data(std::string data)
 void PodParser::parse_inline(std::string para)
 {
     // TODO: Do the actual parsing for italic et al.
-    // TODO: Escape HTML chars <, > and &.
-    html_escape(para);
+    //html_escape(para);
+
+    struct {
+        mtype type;
+        std::string angles;
+        std::string text;
+    } markupel;
+
+    std::stack<markupel> markup_stack;
+    size_t pos=0;
+    size_t angle_count=0;
+    while (pos < para.length()) {
+        if (pos > 1 && para[pos] == '<') {
+            for(size_t pos2=pos; para[pos2] == '<'; pos2++){}
+            angle_count = pos2 - pos;
+
+            switch (para[pos-1]) {
+            case 'I':
+                markup_stack.push_back(markupel{type: mtype::italic, angles: std::string(angle_count, '>')});
+                break;
+            case 'B':
+                markup_stack.push_back(markupel{type: mtype::bold, angles: std::string(angle_count, '>')});
+                break;
+            case 'C':
+                markup_stack.push_back(markupel{type: mtype::code, angles: std::string(angle_count, '>')});
+                break;
+            case 'F':
+                markup_stack.push_back(markupel{type: mtype::filename, angles: std::string(angle_count, '>')});
+                break;
+            case 'X':
+                // TODO: Index
+                break;
+            case 'Z':
+                // TODO: Ignore content
+                break;
+            case 'L':
+                // TODO: Hyperlink
+                break;
+            case 'E':
+                // TODO: Escape code
+                break;
+            case 'S':
+                // TODO: nbsp
+                break;
+            default:
+                std::cerr << "Warning on line " << m_lino << ": Ignoring unknown formatting code '" << para[pos] << "'" << std::endl;
+                break;
+            }
+        }
+        else if (markup_stack.size() > 0 &&
+                 para[pos] == '>' &&
+                 para.substr(pos, markup_stack.top().angles.size()) == markup_stack.top().angles) {
+            markupel el(markup_stack.pop());
+            switch (el.type) {
+            case mtype::italic:
+                m_ast.push_bakc(PodN // HIER
+            }
+        }
+    }
+    
     m_ast.push_back(new PodNodeInlineText(para));
 }
 
