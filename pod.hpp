@@ -66,10 +66,11 @@ private:
 class PodNodeItemEnd: public PodNode
 {
 public:
-    PodNodeItemEnd(std::string label);
+    PodNodeItemEnd(std::string label, OverListType t);
     virtual std::string ToHTML() const;
 private:
     std::string m_label;
+    OverListType m_list_type;
 };
 
 class PodNodeBack: public PodNode

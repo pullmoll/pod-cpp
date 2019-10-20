@@ -180,7 +180,7 @@ void PodParser::parse_command(std::string command)
         // of a =over block).
         PodNodeItemStart* p_preceeding_item = find_preceeding_item();
         if (p_preceeding_item)
-            m_ast.push_back(new PodNodeItemEnd(p_preceeding_item->GetLabel()));
+            m_ast.push_back(new PodNodeItemEnd(p_preceeding_item->GetLabel(), p_preceeding_item->DetermineListType()));
 
         // If "=item" is not followed by *, 0-9 or [ (including not being
         // followed by anything, i.e. bare), then it's a shorthand
@@ -211,7 +211,7 @@ void PodParser::parse_command(std::string command)
         // of a =over block).
         PodNodeItemStart* p_preceeding_item = find_preceeding_item();
         if (p_preceeding_item) {
-            m_ast.push_back(new PodNodeItemEnd(p_preceeding_item->GetLabel()));
+            m_ast.push_back(new PodNodeItemEnd(p_preceeding_item->GetLabel(), p_preceeding_item->DetermineListType()));
             list_type = p_preceeding_item->DetermineListType();
 
             // Set the list type. The list type is set from the list's
@@ -497,17 +497,29 @@ OverListType PodNodeItemStart::DetermineListType() const
 
 std::string PodNodeItemStart::ToHTML() const
 {
-    return "<li>"; // TODO: Don't ignore label.
+    switch (DetermineListType()) {
+    case OverListType::unordered:
+    case OverListType::ordered: // fall-through
+        return "<li>";
+    case OverListType::description:
+        return std::string("<dt>") + m_label.substr(1, m_label.length() - 2) + "</dt><dd>";
+    } // No default -- all overListType values are handled
+
+    throw(std::string("This should never be reached"));
 }
 
-PodNodeItemEnd::PodNodeItemEnd(std::string label)
-    : m_label(label)
+PodNodeItemEnd::PodNodeItemEnd(std::string label, OverListType t)
+    : m_label(label),
+      m_list_type(t)
 {
 }
 
 std::string PodNodeItemEnd::ToHTML() const
 {
-    return "</li>";
+    if (m_list_type == OverListType::description)
+        return "</dd>";
+    else
+        return "</li>";
 }
 
 PodNodeBack::PodNodeBack(OverListType t)
