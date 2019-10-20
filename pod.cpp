@@ -180,7 +180,7 @@ void PodParser::parse_command(std::string command)
         // of a =over block).
         PodNodeItemStart* p_preceeding_item = find_preceeding_item();
         if (p_preceeding_item)
-            m_ast.push_back(new PodNodeItemEnd(p_preceeding_item->GetLabel(), p_preceeding_item->DetermineListType()));
+            m_ast.push_back(new PodNodeItemEnd(p_preceeding_item->GetListType()));
 
         // If "=item" is not followed by *, 0-9 or [ (including not being
         // followed by anything, i.e. bare), then it's a shorthand
@@ -211,8 +211,8 @@ void PodParser::parse_command(std::string command)
         // of a =over block).
         PodNodeItemStart* p_preceeding_item = find_preceeding_item();
         if (p_preceeding_item) {
-            m_ast.push_back(new PodNodeItemEnd(p_preceeding_item->GetLabel(), p_preceeding_item->DetermineListType()));
-            list_type = p_preceeding_item->DetermineListType();
+            m_ast.push_back(new PodNodeItemEnd(p_preceeding_item->GetListType()));
+            list_type = p_preceeding_item->GetListType();
 
             // Set the list type. The list type is set from the list's
             // last item (only), but since all items need to be of the
@@ -473,31 +473,36 @@ std::string PodNodeOver::ToHTML() const
     throw(std::string("This should never be reached"));
 }
 
+/* Construct a new list item start. The list type is determined
+ * from the label: if it is a "*", then it's an unordered list,
+ * if it's a stringified number it's an ordered list, and if
+ * it's anything else then it's a description list. For description
+ * list items, the label is actually printed in the <dt/> element on
+ * HTML output via ToHTML(). */
 PodNodeItemStart::PodNodeItemStart(std::string label)
     : m_label(label)
 {
+    if (m_label[0] == '*')
+        m_list_type = OverListType::unordered;
+    else if (m_label[0] >= '0' && m_label[0] <= '9')
+        m_list_type = OverListType::ordered;
+    else
+        m_list_type = OverListType::description;
 }
 
-const std::string& PodNodeItemStart::GetLabel()
+const std::string& PodNodeItemStart::GetLabel() const
 {
     return m_label;
 }
 
-// Checks which type of list this item belongs to, by looking at
-// the list label.
-OverListType PodNodeItemStart::DetermineListType() const
+OverListType PodNodeItemStart::GetListType() const
 {
-    if (m_label[0] == '*')
-        return OverListType::unordered;
-    else if (m_label[0] >= '0' && m_label[0] <= '9')
-        return OverListType::ordered;
-    else
-        return OverListType::description;
+    return m_list_type;
 }
 
 std::string PodNodeItemStart::ToHTML() const
 {
-    switch (DetermineListType()) {
+    switch (m_list_type) {
     case OverListType::unordered:
     case OverListType::ordered: // fall-through
         return "<li>";
@@ -508,9 +513,8 @@ std::string PodNodeItemStart::ToHTML() const
     throw(std::string("This should never be reached"));
 }
 
-PodNodeItemEnd::PodNodeItemEnd(std::string label, OverListType t)
-    : m_label(label),
-      m_list_type(t)
+PodNodeItemEnd::PodNodeItemEnd(OverListType t)
+    : m_list_type(t)
 {
 }
 

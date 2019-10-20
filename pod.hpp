@@ -57,19 +57,19 @@ class PodNodeItemStart: public PodNode
 public:
     PodNodeItemStart(std::string label);
     virtual std::string ToHTML() const;
-    const std::string& GetLabel();
-    OverListType DetermineListType() const;
+    const std::string& GetLabel() const;
+    OverListType GetListType() const;
 private:
     std::string m_label;
+    OverListType m_list_type;
 };
 
 class PodNodeItemEnd: public PodNode
 {
 public:
-    PodNodeItemEnd(std::string label, OverListType t);
+    PodNodeItemEnd(OverListType t);
     virtual std::string ToHTML() const;
 private:
-    std::string m_label;
     OverListType m_list_type;
 };
 
