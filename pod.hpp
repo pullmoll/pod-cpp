@@ -35,13 +35,21 @@ private:
     int m_level;
 };
 
+enum class OverListType {
+    unordered,
+    ordered,
+    description
+};
+
 class PodNodeOver: public PodNode
 {
 public:
     PodNodeOver(float indent = 4.0f);
     virtual std::string ToHTML() const;
+    void SetListType(OverListType t);
 private:
     float m_indent;
+    OverListType m_list_type;
 };
 
 class PodNodeItemStart: public PodNode
@@ -50,6 +58,7 @@ public:
     PodNodeItemStart(std::string label);
     virtual std::string ToHTML() const;
     const std::string& GetLabel();
+    OverListType DetermineListType() const;
 private:
     std::string m_label;
 };
@@ -65,7 +74,11 @@ private:
 
 class PodNodeBack: public PodNode
 {
+public:
+    PodNodeBack(OverListType t);
     virtual std::string ToHTML() const;
+private:
+    OverListType m_list_type;
 };
 
 class PodNodeParaStart: public PodNode
@@ -192,6 +205,7 @@ private:
     void parse_data(std::string data);
     void parse_inline(std::string para);
     PodNodeItemStart* find_preceeding_item();
+    PodNodeOver* find_preceeding_over();
 
     enum class mode {
         none,

@@ -211,15 +211,28 @@ void PodParser::parse_command(std::string command)
         m_ast.push_back(new PodNodeParaEnd());
     }
     else if (cmd == "back") {
+        OverListType list_type = OverListType::unordered;
+
         // If there's a preceeding =item, close it (there's none at the beginning
         // of a =over block).
         PodNodeItemStart* p_preceeding_item = find_preceeding_item();
-        if (p_preceeding_item)
+        if (p_preceeding_item) {
             m_ast.push_back(new PodNodeItemEnd(p_preceeding_item->GetLabel()));
-        else
-            std::cerr << "Warning on line " << m_lino << ": empty =over block" << std::endl;
+            list_type = p_preceeding_item->DetermineListType();
 
-        m_ast.push_back(new PodNodeBack());
+            // Set the list type. The list type is set from the list's
+            // last item (only), but since all items need to be of the
+            // same time, this should rarely ever be a problem.
+            PodNodeOver* p_preceeding_over = find_preceeding_over();
+            if (p_preceeding_over) {
+                p_preceeding_over->SetListType(list_type);
+            }
+        }
+        else {
+            std::cerr << "Warning on line " << m_lino << ": empty =over block" << std::endl;
+        }
+
+        m_ast.push_back(new PodNodeBack(list_type));
     }
     else if (cmd == "begin") {
         m_data_end_tag = std::string("=end ") + arguments[0];
@@ -372,6 +385,30 @@ PodNodeItemStart* PodParser::find_preceeding_item() {
     return nullptr; // No preceeding =item on the same level
 }
 
+// Finds the =over that corresponds to the current indent level.
+// If there is none (i.e. currently outside =over block),
+// returns nullptr.
+PodNodeOver* PodParser::find_preceeding_over() {
+    PodNodeOver* p_over = nullptr;
+    int level = 0;
+
+    for(auto iter=m_ast.rbegin(); iter != m_ast.rend(); iter++) {
+        if (dynamic_cast<PodNodeBack*>(*iter)) {
+            level++;
+        }
+        else if ((p_over = dynamic_cast<PodNodeOver*>(*iter))) { // Single = intended
+            if (level == 0) {
+                return p_over;
+            }
+            else {
+                level--;
+            }
+        }
+    }
+
+    return nullptr; // Not inside an =over block
+}
+
 /***************************************
  * Formatter
  **************************************/
@@ -418,13 +455,28 @@ std::string PodNodeHeadEnd::ToHTML() const
 }
 
 PodNodeOver::PodNodeOver(float indent)
-    : m_indent(indent)
+    : m_indent(indent),
+      m_list_type(OverListType::unordered)
 {
+}
+
+void PodNodeOver::SetListType(OverListType t)
+{
+    m_list_type = t;
 }
 
 std::string PodNodeOver::ToHTML() const
 {
-    return "<ul>"; // TODO: Properly determine type?
+    switch (m_list_type) {
+    case OverListType::unordered:
+        return "<ul>";
+    case OverListType::ordered:
+        return "<ol>";
+    case OverListType::description:
+        return "<dl>";
+    } // No default -- all OverListType values are handled
+
+    throw(std::string("This should never be reached"));
 }
 
 PodNodeItemStart::PodNodeItemStart(std::string label)
@@ -435,6 +487,18 @@ PodNodeItemStart::PodNodeItemStart(std::string label)
 const std::string& PodNodeItemStart::GetLabel()
 {
     return m_label;
+}
+
+// Checks which type of list this item belongs to, by looking at
+// the list label.
+OverListType PodNodeItemStart::DetermineListType() const
+{
+    if (m_label[0] == '*')
+        return OverListType::unordered;
+    else if (m_label[0] >= '0' && m_label[0] <= '9')
+        return OverListType::ordered;
+    else
+        return OverListType::description;
 }
 
 std::string PodNodeItemStart::ToHTML() const
@@ -452,9 +516,23 @@ std::string PodNodeItemEnd::ToHTML() const
     return "</li>";
 }
 
+PodNodeBack::PodNodeBack(OverListType t)
+    : m_list_type(t)
+{
+}
+
 std::string PodNodeBack::ToHTML() const
 {
-    return "</ul>"; // TODO: Properly determine type?
+    switch (m_list_type) {
+    case OverListType::unordered:
+        return "</ul>";
+    case OverListType::ordered:
+        return "</ol>";
+    case OverListType::description:
+        return "</dl>";
+    } // No default -- all OverListType values are handled
+
+    throw(std::string("This should never be reached"));
 }
 
 std::string PodNodeParaStart::ToHTML() const
