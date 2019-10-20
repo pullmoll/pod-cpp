@@ -34,6 +34,10 @@ void PodParser::Parse()
         m_lino++;
         parse_line(line); // Note: `line' lacks terminal \n
     }
+
+    // Terminate whatever is the last element. The empty string
+    // is detected by all modes as a terminator.
+    parse_line("");
 }
 
 void PodParser::parse_line(const std::string& line)
