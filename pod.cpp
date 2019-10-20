@@ -182,6 +182,12 @@ void PodParser::parse_command(std::string command)
             m_ast.push_back(new PodNodeOver(std::stof(arguments[0])));
     }
     else if (cmd == "item") {
+        // If there's a preceeding =item, close it (there's none at the beginning
+        // of a =over block).
+        PodNodeItemStart* p_preceeding_item = find_preceeding_item();
+        if (p_preceeding_item)
+            m_ast.push_back(new PodNodeItemEnd(p_preceeding_item->GetLabel()));
+
         // If "=item" is not followed by *, 0-9 or [ (including not being
         // followed by anything, i.e. bare), then it's a shorthand
         // for "=item *". Normalise that.
@@ -193,7 +199,6 @@ void PodParser::parse_command(std::string command)
         }
 
         m_ast.push_back(new PodNodeItemStart(arguments[0]));
-        // TODO: PodNodeItemEnd?
 
         // Any subsequent arguments form a paragraph inside the list.
         // Reconstruct the paragraph from the arguments list, parse it,
@@ -206,6 +211,14 @@ void PodParser::parse_command(std::string command)
         m_ast.push_back(new PodNodeParaEnd());
     }
     else if (cmd == "back") {
+        // If there's a preceeding =item, close it (there's none at the beginning
+        // of a =over block).
+        PodNodeItemStart* p_preceeding_item = find_preceeding_item();
+        if (p_preceeding_item)
+            m_ast.push_back(new PodNodeItemEnd(p_preceeding_item->GetLabel()));
+        else
+            std::cerr << "Warning on line " << m_lino << ": empty =over block" << std::endl;
+
         m_ast.push_back(new PodNodeBack());
     }
     else if (cmd == "begin") {
@@ -341,6 +354,24 @@ void PodParser::parse_inline(std::string para)
     m_ast.push_back(new PodNodeInlineText(para));
 }
 
+// Finds the preceeding =item on the same =over level.
+// If there is none, returns nullptr.
+PodNodeItemStart* PodParser::find_preceeding_item() {
+    PodNodeItemStart* p_item = nullptr;
+    int level = 0;
+
+    for(auto iter=m_ast.rbegin(); iter != m_ast.rend(); iter++) {
+        if (dynamic_cast<PodNodeBack*>(*iter))
+            level++;
+        else if (level > 0 && dynamic_cast<PodNodeOver*>(*iter)) // >0 to ignore opening =over of current list
+            level--;
+        else if (level == 0 && (p_item = dynamic_cast<PodNodeItemStart*>(*iter)))
+            return p_item;         //  ^ Single "=" intended
+    }
+
+    return nullptr; // No preceeding =item on the same level
+}
+
 /***************************************
  * Formatter
  **************************************/
@@ -399,6 +430,11 @@ std::string PodNodeOver::ToHTML() const
 PodNodeItemStart::PodNodeItemStart(std::string label)
     : m_label(label)
 {
+}
+
+const std::string& PodNodeItemStart::GetLabel()
+{
+    return m_label;
 }
 
 std::string PodNodeItemStart::ToHTML() const

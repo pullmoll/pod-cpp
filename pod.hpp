@@ -49,6 +49,7 @@ class PodNodeItemStart: public PodNode
 public:
     PodNodeItemStart(std::string label);
     virtual std::string ToHTML() const;
+    const std::string& GetLabel();
 private:
     std::string m_label;
 };
@@ -190,6 +191,7 @@ private:
     void parse_verbatim(std::string verbatim);
     void parse_data(std::string data);
     void parse_inline(std::string para);
+    PodNodeItemStart* find_preceeding_item();
 
     enum class mode {
         none,
