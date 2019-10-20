@@ -1,6 +1,7 @@
 #include "pod.hpp"
 #include <sstream>
 #include <iostream>
+#include <iterator>
 
 PodParser::PodParser(const std::string& str)
     : m_lino(0),
@@ -130,22 +131,15 @@ void PodParser::parse_ordinary(std::string ordinary)
 // Note: `command' is already cleared from newlines.
 void PodParser::parse_command(std::string command)
 {
-    std::vector<std::string> arguments;
-    std::string cmd = command.substr(1); // 1 for skipping the leading "="
-    // `cmd' is overwritten if the command has arguments, see below
+    // Parse command line into command and arguments using
+    // nasty magic because C++ has no "split string" function
+    // <https://stackoverflow.com/a/237280>
+    std::istringstream iss(command.substr(1)); // 1 for skipping the leading "="
+    std::vector<std::string> arguments{std::istream_iterator<std::string>{iss},
+            std::istream_iterator<std::string>{}};
 
-    // Parse command line into command and arguments
-    size_t pos = 1;
-    size_t last_pos = 1;  // Skip leading "="
-    while ((pos = command.find(" ", last_pos)) != std::string::npos) {
-        if (last_pos == 1) { // This is the command itself
-            cmd = command.substr(last_pos, pos-last_pos);
-        }
-        else { // This is an argument
-            arguments.push_back(command.substr(last_pos, pos-last_pos));
-        }
-        last_pos = pos+1; // Skip space
-    }
+    std::string cmd = arguments[0];
+    arguments.erase(arguments.begin());
 
     // Execute the command
     if (cmd == "head1") {
