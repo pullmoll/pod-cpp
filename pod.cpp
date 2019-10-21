@@ -2,6 +2,7 @@
 #include <sstream>
 #include <iostream>
 #include <iterator>
+#include <stack>
 
 PodParser::PodParser(const std::string& str)
     : m_lino(0),
@@ -297,35 +298,43 @@ void PodParser::parse_data(std::string data)
 // elements (e.g. paragraph start and end) are included.
 void PodParser::parse_inline(std::string para)
 {
-    // TODO: Do the actual parsing for italic et al.
-    //html_escape(para);
-
-    struct {
+    struct markupel {
+        size_t angle_count;
         mtype type;
-        std::string angles;
-        std::string text;
-    } markupel;
+    };
 
-    std::stack<markupel> markup_stack;
-    size_t pos=0;
-    size_t angle_count=0;
-    while (pos < para.length()) {
-        if (pos > 1 && para[pos] == '<') {
-            for(size_t pos2=pos; para[pos2] == '<'; pos2++){}
-            angle_count = pos2 - pos;
+    if (m_source_markup.find("<LevelClass>") != std::string::npos) {
+        std::cout << para << std::endl;
+    }
 
-            switch (para[pos-1]) {
+    std::stack<markupel> inline_stack;
+    markupel mel;
+    for (size_t pos=0; pos < para.length(); pos++) {
+        if (para[pos+1] == '<') { // Start of inline markup
+            mel.angle_count = 0;
+            // Count angles
+            while (para[pos+1] == '<') {
+                mel.angle_count++;
+                pos++;
+            }
+
+            mel.type = mtype::none;
+            switch (para[pos-mel.angle_count]) {
             case 'I':
-                markup_stack.push_back(markupel{type: mtype::italic, angles: std::string(angle_count, '>')});
+                mel.type = mtype::italic;
+                m_ast.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'B':
-                markup_stack.push_back(markupel{type: mtype::bold, angles: std::string(angle_count, '>')});
+                mel.type = mtype::bold;
+                m_ast.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'C':
-                markup_stack.push_back(markupel{type: mtype::code, angles: std::string(angle_count, '>')});
+                mel.type = mtype::code;
+                m_ast.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'F':
-                markup_stack.push_back(markupel{type: mtype::filename, angles: std::string(angle_count, '>')});
+                mel.type = mtype::filename;
+                m_ast.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'X':
                 // TODO: Index
@@ -344,21 +353,61 @@ void PodParser::parse_inline(std::string para)
                 break;
             default:
                 std::cerr << "Warning on line " << m_lino << ": Ignoring unknown formatting code '" << para[pos] << "'" << std::endl;
+                mel.type = mtype::none;
+                m_ast.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             }
+
+            // Strip leading spaces
+            while (para[pos+1] == ' ')
+                pos++;
+
+            inline_stack.push(mel);
         }
-        else if (markup_stack.size() > 0 &&
-                 para[pos] == '>' &&
-                 para.substr(pos, markup_stack.top().angles.size()) == markup_stack.top().angles) {
-            markupel el(markup_stack.pop());
-            switch (el.type) {
-            case mtype::italic:
-                m_ast.push_bakc(PodN // HIER
+        else if (inline_stack.size() > 0 && para[pos] == '>') { // End of inline markup
+            mel = inline_stack.top();
+            std::string angles(mel.angle_count, '>');
+
+            // Retrieve preceeding inline text, if there's any (there's none
+            // immediately following an opening markup token).
+            PodNodeInlineText* p_prectext = dynamic_cast<PodNodeInlineText*>(m_ast.back());
+
+            // Check if this is a valid markup close or just stray angle brackets
+            if (para.substr(pos, mel.angle_count) == angles) { // Valid
+                inline_stack.pop();
+                pos += mel.angle_count - 1; // pos is increased by loop statement by 1 again
+
+                // Strip trailing whitespace of preceeding text
+                if (p_prectext)
+                    p_prectext->StripTrailingWhitespace();
+
+                // Insert End marker
+                m_ast.push_back(new PodNodeInlineMarkupEnd(mel.type));
+            }
+            else { // Stray angle brackets
+                // Not enough closing angles. Insert as plain text.
+                // Append to last text node if exists, otherwise
+                // make a new text node.
+                std::string s(para.substr(pos, 1));
+                html_escape(s);
+                if (p_prectext)
+                    p_prectext->AddText(s);
+                else
+                    m_ast.push_back(new PodNodeInlineText(s));
             }
         }
+        else { // No inline markup: plain text
+            // Append to last text node if exists, otherwise
+            // make a new text node.
+            PodNodeInlineText* p_prectext = dynamic_cast<PodNodeInlineText*>(m_ast.back());
+            std::string s(para.substr(pos, 1));
+            html_escape(s);
+            if (p_prectext)
+                p_prectext->AddText(s);
+            else
+                m_ast.push_back(new PodNodeInlineText(s));
+        }
     }
-    
-    m_ast.push_back(new PodNodeInlineText(para));
 }
 
 // Finds the preceeding =item on the same =over level.
@@ -418,7 +467,6 @@ std::string PodHTMLFormatter::FormatHTML()
 
     for (const PodNode* p_node: m_ast) {
         result += p_node->ToHTML();
-        result += "\n";
     }
 
     return result;
@@ -445,7 +493,7 @@ PodNodeHeadEnd::PodNodeHeadEnd(int level)
 
 std::string PodNodeHeadEnd::ToHTML() const
 {
-    return std::string("</h" + std::to_string(m_level) + ">");
+    return std::string("</h" + std::to_string(m_level) + ">\n");
 }
 
 PodNodeOver::PodNodeOver(float indent)
@@ -470,7 +518,7 @@ std::string PodNodeOver::ToHTML() const
         return "<dl>";
     } // No default -- all OverListType values are handled
 
-    throw(std::string("This should never be reached"));
+    throw(std::runtime_error("This should never be reached"));
 }
 
 /* Construct a new list item start. The list type is determined
@@ -535,14 +583,14 @@ std::string PodNodeBack::ToHTML() const
 {
     switch (m_list_type) {
     case OverListType::unordered:
-        return "</ul>";
+        return "</ul>\n";
     case OverListType::ordered:
-        return "</ol>";
+        return "</ol>\n";
     case OverListType::description:
-        return "</dl>";
+        return "</dl>\n";
     } // No default -- all OverListType values are handled
 
-    throw(std::string("This should never be reached"));
+    throw(std::runtime_error("This should never be reached"));
 }
 
 std::string PodNodeParaStart::ToHTML() const
@@ -552,7 +600,7 @@ std::string PodNodeParaStart::ToHTML() const
 
 std::string PodNodeParaEnd::ToHTML() const
 {
-    return "</p>";
+    return "</p>\n";
 }
 
 PodNodeInlineText::PodNodeInlineText(std::string text)
@@ -560,9 +608,76 @@ PodNodeInlineText::PodNodeInlineText(std::string text)
 {
 }
 
+PodNodeInlineText::PodNodeInlineText(char ch)
+    : m_text(1, ch)
+{
+}
+
+void PodNodeInlineText::AddText(const std::string& text) {
+    m_text += text;
+}
+
+void PodNodeInlineText::AddText(char ch) {
+    m_text += std::string(1, ch);
+}
+
+void PodNodeInlineText::StripTrailingWhitespace() {
+    while (m_text[m_text.length()-1] == ' ') {
+        m_text = m_text.substr(0, m_text.length() - 1);
+    }
+}
+
 std::string PodNodeInlineText::ToHTML() const
 {
     return m_text;
+}
+
+PodNodeInlineMarkupStart::PodNodeInlineMarkupStart(mtype type, std::vector<std::string> args)
+    : m_mtype(type),
+      m_args(args)
+{
+}
+
+std::string PodNodeInlineMarkupStart::ToHTML() const
+{
+    switch (m_mtype) {
+    case mtype::none:
+        return "";
+    case mtype::italic:
+        return "<i>";
+    case mtype::bold:
+        return "<b>";
+    case mtype::code:
+        return "<tt>";
+    case mtype::filename:
+        return "<span class=\"filename\">";
+    }
+
+    throw(std::runtime_error("This should never be reached"));
+}
+
+PodNodeInlineMarkupEnd::PodNodeInlineMarkupEnd(mtype type, std::vector<std::string> args)
+    : m_mtype(type),
+      m_args(args)
+{
+}
+
+std::string PodNodeInlineMarkupEnd::ToHTML() const
+{
+    switch (m_mtype) {
+    case mtype::none:
+        return "";
+    case mtype::italic:
+        return "</i>";
+    case mtype::bold:
+        return "</b>";
+    case mtype::code:
+        return "</tt>";
+    case mtype::filename:
+        return "</span>";
+    }
+
+    throw(std::runtime_error("This should never be reached"));
 }
 
 PodNodeData::PodNodeData(std::string data, std::vector<std::string> arguments)
@@ -591,7 +706,7 @@ void PodNodeVerbatim::AddText(std::string text)
 
 std::string PodNodeVerbatim::ToHTML() const
 {
-    return std::string("<pre>") + m_text + std::string("</pre>");
+    return std::string("<pre>") + m_text + std::string("</pre>\n");
 }
 
 /***************************************

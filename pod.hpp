@@ -92,16 +92,8 @@ class PodNodeParaEnd: public PodNode
     virtual std::string ToHTML() const;
 };
 
-class PodNodeInlineText: public PodNode
-{
-public:
-    PodNodeInlineText(std::string text);
-    virtual std::string ToHTML() const;
-private:
-    std::string m_text;
-};
-
 enum class mtype {
+    none,
     italic,
     bold,
     code,
@@ -111,60 +103,33 @@ enum class mtype {
 class PodNodeInlineMarkupStart: public PodNode
 {
 public:
-    PodNodeInlineMarkupStart(mtype type);
+    PodNodeInlineMarkupStart(mtype type, std::vector<std::string> args = std::vector<std::string>());
+    virtual std::string ToHTML() const;
 private:
     mtype m_mtype;
+    std::vector<std::string> m_args;
 };
 
 class PodNodeInlineMarkupEnd: public PodNode
 {
 public:
-    PodNodeInlineMarkupEnd(mtype type);
+    PodNodeInlineMarkupEnd(mtype type, std::vector<std::string> args = std::vector<std::string>());
+    virtual std::string ToHTML() const;
 private:
     mtype m_mtype;
+    std::vector<std::string> m_args;
 };
 
-class PodNodeInlineItalicStart: public PodNode
+// This node class is for the downmost-possible unit, i.e. the actual text.
+class PodNodeInlineText: public PodNode
 {
 public:
-    PodNodeInlineItalicStart(std::string text);
+    PodNodeInlineText(std::string text);
+    PodNodeInlineText(char ch);
     virtual std::string ToHTML() const;
-private:
-    std::string m_text;
-};
-
-class PodNodeInlineBoldStart: public PodNode
-{
-public:
-    PodNodeInlineBoldStart(std::string text);
-    virtual std::string ToHTML() const;
-private:
-    std::string m_text;
-};
-
-class PodNodeInlineBoldEnd: public PodNode
-{
-public:
-    PodNodeInlineBoldEnd(std::string text);
-    virtual std::string ToHTML() const;
-private:
-    std::string m_text;
-};
-
-class PodNodeInlineCodeStart: public PodNode
-{
-public:
-    PodNodeInlineCodeStart(std::string text);
-    virtual std::string ToHTML() const;
-private:
-    std::string m_text;
-};
-
-class PodNodeInlineCodeEnd: public PodNode
-{
-public:
-    PodNodeInlineCodeEnd(std::string text);
-    virtual std::string ToHTML() const;
+    void AddText(const std::string& text);
+    void AddText(char ch);
+    void StripTrailingWhitespace();
 private:
     std::string m_text;
 };
