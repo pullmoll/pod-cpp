@@ -433,6 +433,30 @@ PodNodeItemStart* PodParser::find_preceeding_item() {
     return nullptr; // No preceeding =item on the same level
 }
 
+// Finds the =over that corresponds to the current indent level.
+// If there is none (i.e. currently outside =over block),
+// returns nullptr.
+PodNodeOver* PodParser::find_preceeding_over() {
+    PodNodeOver* p_over = nullptr;
+    int level = 0;
+
+    for(auto iter=m_tokens.rbegin(); iter != m_tokens.rend(); iter++) {
+        if (dynamic_cast<PodNodeBack*>(*iter)) {
+            level++;
+        }
+        else if ((p_over = dynamic_cast<PodNodeOver*>(*iter))) { // Single = intended
+            if (level == 0) {
+                return p_over;
+            }
+            else {
+                level--;
+            }
+        }
+    }
+
+    return nullptr; // Not inside an =over block
+}
+
 // Checks if the parser at the current point is inside an opened
 // formatting code of type `t'. This function takes care of nesting
 // for all modes, even though nesting is not useful for all modes
@@ -457,30 +481,6 @@ bool PodParser::is_inline_mode_active(mtype t)
     }
 
     return level > 0;
-}
-
-// Finds the =over that corresponds to the current indent level.
-// If there is none (i.e. currently outside =over block),
-// returns nullptr.
-PodNodeOver* PodParser::find_preceeding_over() {
-    PodNodeOver* p_over = nullptr;
-    int level = 0;
-
-    for(auto iter=m_tokens.rbegin(); iter != m_tokens.rend(); iter++) {
-        if (dynamic_cast<PodNodeBack*>(*iter)) {
-            level++;
-        }
-        else if ((p_over = dynamic_cast<PodNodeOver*>(*iter))) { // Single = intended
-            if (level == 0) {
-                return p_over;
-            }
-            else {
-                level--;
-            }
-        }
-    }
-
-    return nullptr; // Not inside an =over block
 }
 
 // Evaluate the Z<> formatting code. This function erases from
