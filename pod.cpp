@@ -2,6 +2,7 @@
 #include <sstream>
 #include <iostream>
 #include <iterator>
+#include <algorithm>
 #include <stack>
 
 PodParser::PodParser(const std::string& str)
@@ -31,7 +32,9 @@ void PodParser::Parse()
     m_verbatim_lead_space = 0;
     m_current_buffer.clear();
     m_data_end_tag.clear();
+    m_idx_keywords.clear();
     m_ecode.clear();
+    m_idx_kw.clear();
 
     while (std::getline(ss, line)) {
         m_lino++;
@@ -325,6 +328,9 @@ void PodParser::parse_inline(std::string para)
             else if (is_inline_mode_active(mtype::escape)) {
                 std::cerr << "Warning on line " << m_lino << ": E<> may not contain further formatting codes" << std::endl;
             }
+            else if (is_inline_mode_active(mtype::index)) {
+                std::cerr << "Warning on line " << m_lino << ": X<> may not contain further formatting codes" << std::endl;
+            }
 
             mel.type = mtype::none;
             switch (para[pos-mel.angle_count]) {
@@ -345,7 +351,8 @@ void PodParser::parse_inline(std::string para)
                 m_tokens.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'X':
-                // TODO: Index
+                mel.type = mtype::index;
+                m_tokens.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'Z':
                 mel.type = mtype::zap;
@@ -393,12 +400,22 @@ void PodParser::parse_inline(std::string para)
                     p_prectext->StripTrailingWhitespace();
 
                 // Insert End marker
-                if (mel.type == mtype::escape) {
+                switch (mel.type) {
+                case mtype::escape:
                     m_tokens.push_back(new PodNodeInlineMarkupEnd(mel.type, {m_ecode}));
                     m_ecode.clear();
-                }
-                else {
+                    break;
+                case mtype::index: {
+                    std::string target(m_idx_kw);
+                    std::replace(target.begin(), target.end(), ' ', '_');
+
+                    m_tokens.push_back(new PodNodeInlineMarkupEnd(mel.type, {target}));
+                    m_idx_keywords[m_idx_kw] = target;
+                    m_idx_kw.clear(); }
+                    break;
+                default:
                     m_tokens.push_back(new PodNodeInlineMarkupEnd(mel.type));
+                    break;
                 }
             }
             else { // Stray angle brackets
@@ -416,6 +433,9 @@ void PodParser::parse_inline(std::string para)
         else { // No inline markup: plain text
             if (is_inline_mode_active(mtype::escape)) { // Escape code
                 m_ecode += para.substr(pos, 1);
+            }
+            else if (is_inline_mode_active(mtype::index)) { // Index code
+                m_idx_kw += para.substr(pos, 1);
             }
             else { // Actual text
                 // Append to last text node if exists, otherwise
@@ -755,6 +775,7 @@ std::string PodNodeInlineMarkupStart::ToHTML() const
     case mtype::nbsp:   // fall-through
     case mtype::zap:    // fall-through
     case mtype::escape: // fall-through
+    case mtype::index:  // fall-through
         return "";
     case mtype::italic:
         return "<i>";
@@ -801,6 +822,8 @@ std::string PodNodeInlineMarkupEnd::ToHTML() const
             return "&raquo;";
         else // FIXME: Check if args[0] is actually a valid escape code
             return std::string("&") + m_args[0] + ";";
+    case mtype::index:
+        return std::string("<a class=\"idxentry\" name=\"idx-") + m_args[0] + "\"></a>";
     }
 
     throw(std::runtime_error("This should never be reached"));

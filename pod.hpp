@@ -1,6 +1,7 @@
 #ifndef SCRDG_POD_HPP
 #include <string>
 #include <vector>
+#include <map>
 #include <initializer_list>
 
 #define SCRDG_POD_HPP
@@ -100,7 +101,8 @@ enum class mtype {
     filename,
     nbsp,
     zap,
-    escape
+    escape,
+    index
 };
 
 class PodNodeInlineMarkupStart: public PodNode
@@ -167,6 +169,9 @@ public:
 
     void Parse();
     inline const std::vector<PodNode*>& GetTokens() { return m_tokens; };
+    // Returns the found X<> index entries as a map of form:
+    // "index heading" => "insert_anchor_name"
+    inline const std::map<std::string, std::string> GetIndexEntries() const { return m_idx_keywords; }
 
 private:
     void parse_line(const std::string& line);
@@ -197,7 +202,9 @@ private:
     std::string m_current_buffer;
     std::string m_data_end_tag;
     std::vector<std::string> m_data_args;
+    std::map<std::string, std::string> m_idx_keywords;
     std::string m_ecode;
+    std::string m_idx_kw;
 };
 
 class PodHTMLFormatter
