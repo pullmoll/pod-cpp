@@ -402,7 +402,7 @@ void PodParser::parse_inline(std::string para)
             // make a new text node.
             PodNodeInlineText* p_prectext = dynamic_cast<PodNodeInlineText*>(m_tokens.back());
             std::string s(para.substr(pos, 1));
-            html_escape(s, is_nbsp_mode_active());
+            html_escape(s, is_inline_mode_active(mtype::nbsp));
             if (p_prectext)
                 p_prectext->AddText(s);
             else
@@ -429,12 +429,11 @@ PodNodeItemStart* PodParser::find_preceeding_item() {
     return nullptr; // No preceeding =item on the same level
 }
 
-// Checks if the parser at the current point is inside an
-// opened S<> formatting code. This function allows S<>
-// to be nested theoretically. Doing so has probably no
-// other use than trying to confuse the POD parser as
-// the effect of S<> cannot be cancelled from the inside.
-bool PodParser::is_nbsp_mode_active()
+// Checks if the parser at the current point is inside an opened
+// formatting code of type `t'. This function takes care of nesting
+// for all modes, even though nesting is not useful for all modes
+// (notably mtype::nbsp).
+bool PodParser::is_inline_mode_active(mtype t)
 {
     PodNodeInlineMarkupEnd* p_mend = nullptr;
     PodNodeInlineMarkupStart* p_mstart = nullptr;
@@ -442,12 +441,12 @@ bool PodParser::is_nbsp_mode_active()
 
     for(auto iter=m_tokens.rbegin(); iter != m_tokens.rend(); iter++) {
         if ((p_mend = dynamic_cast<PodNodeInlineMarkupEnd*>(*iter))) { // Single = intended
-            if (p_mend->GetMtype() == mtype::nbsp) {
+            if (p_mend->GetMtype() == t) {
                 level--;
             }
         }
         else if ((p_mstart = dynamic_cast<PodNodeInlineMarkupStart*>(*iter))) { // Single = intended
-            if (p_mstart->GetMtype() == mtype::nbsp) {
+            if (p_mstart->GetMtype() == t) {
                 level++;
             }
         }

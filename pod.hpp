@@ -175,7 +175,7 @@ private:
     void parse_inline(std::string para);
     PodNodeItemStart* find_preceeding_item();
     PodNodeOver* find_preceeding_over();
-    bool is_nbsp_mode_active();
+    bool is_inline_mode_active(mtype t);
 
     enum class mode {
         none,
