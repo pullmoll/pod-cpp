@@ -340,7 +340,8 @@ void PodParser::parse_inline(std::string para)
                 // TODO: Index
                 break;
             case 'Z':
-                // TODO: Ignore content
+                mel.type = mtype::zap;
+                m_tokens.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'L':
                 // TODO: Hyperlink
@@ -409,6 +410,9 @@ void PodParser::parse_inline(std::string para)
                 m_tokens.push_back(new PodNodeInlineText(s));
         }
     }
+
+    // Handle Z<> formatting codes
+    zap_tokens();
 }
 
 // Finds the preceeding =item on the same =over level.
@@ -477,6 +481,65 @@ PodNodeOver* PodParser::find_preceeding_over() {
     }
 
     return nullptr; // Not inside an =over block
+}
+
+// Evaluate the Z<> formatting code. This function erases from
+// m_tokens everything between a PodNodeInlineMarkupStart of type
+// mtype::zap and the corresponding PodNodeInlineMarkupEnd. If in a
+// paragraph, heading, or item no PodNodeInlineMarkupEnd is found, the
+// block's ending terminates zap mode (this caters for missing closing
+// ">").
+void PodParser::zap_tokens()
+{
+    PodNodeInlineMarkupEnd*   p_mend   = nullptr;
+    PodNodeInlineMarkupStart* p_mstart = nullptr;
+    bool erase = false;
+    int  level = 0;
+
+    for(auto iter=m_tokens.begin(); iter != m_tokens.end(); iter++) {
+        // Always terminate Z<> mode if the end of the current
+        // block is reached while Z mode is active (i.e. missing
+        // closing ">").
+        if ((level > 0) && (dynamic_cast<PodNodeHeadEnd*>(*iter) ||
+                            dynamic_cast<PodNodeItemEnd*>(*iter) ||
+                            dynamic_cast<PodNodeParaEnd*>(*iter))) {
+            level = 0;
+            continue;
+        }
+
+        // Check for zap mode formatting codes
+        if ((p_mstart = dynamic_cast<PodNodeInlineMarkupStart*>(*iter))) { // Single = intended
+            if (p_mstart->GetMtype() == mtype::zap) {
+                if (level > 0) {
+                    erase = true;
+                }
+
+                level++;
+            }
+        }
+        else if ((p_mend = dynamic_cast<PodNodeInlineMarkupEnd*>(*iter))) { // Single = intended
+            if (p_mend->GetMtype() == mtype::zap) {
+                level--;
+
+                if (level > 0) {
+                    erase = true;
+                }
+            }
+        }
+        else if (level > 0) {
+            erase = true;
+        }
+
+        // If inside zap mode, erase token.
+        if (erase) {
+            erase = false;
+            iter = m_tokens.erase(iter);
+            if (iter == m_tokens.end())
+                break;
+            else
+                iter--;
+        }
+    }
 }
 
 /***************************************
@@ -670,6 +733,7 @@ std::string PodNodeInlineMarkupStart::ToHTML() const
     switch (m_mtype) {
     case mtype::none:
     case mtype::nbsp: // fall-through
+    case mtype::zap:  // fall-through
         return "";
     case mtype::italic:
         return "<i>";
@@ -695,6 +759,7 @@ std::string PodNodeInlineMarkupEnd::ToHTML() const
     switch (m_mtype) {
     case mtype::none:
     case mtype::nbsp: // fall-through
+    case mtype::zap:  // fall-through
         return "";
     case mtype::italic:
         return "</i>";

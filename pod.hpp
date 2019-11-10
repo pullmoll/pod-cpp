@@ -98,7 +98,8 @@ enum class mtype {
     bold,
     code,
     filename,
-    nbsp
+    nbsp,
+    zap
 };
 
 class PodNodeInlineMarkupStart: public PodNode
@@ -176,6 +177,7 @@ private:
     PodNodeItemStart* find_preceeding_item();
     PodNodeOver* find_preceeding_over();
     bool is_inline_mode_active(mtype t);
+    void zap_tokens();
 
     enum class mode {
         none,
