@@ -14,7 +14,7 @@ PodParser::PodParser(const std::string& str)
 
 PodParser::~PodParser()
 {
-    for (PodNode* p_node: m_ast) {
+    for (PodNode* p_node: m_tokens) {
         delete p_node;
     }
 }
@@ -124,9 +124,9 @@ void PodParser::parse_line(const std::string& line)
 // Note: `ordinary' is already cleared from newlines.
 void PodParser::parse_ordinary(std::string ordinary)
 {
-    m_ast.push_back(new PodNodeParaStart());
+    m_tokens.push_back(new PodNodeParaStart());
     parse_inline(ordinary);
-    m_ast.push_back(new PodNodeParaEnd());
+    m_tokens.push_back(new PodNodeParaEnd());
 }
 
 // Note: `command' is already cleared from newlines.
@@ -144,24 +144,24 @@ void PodParser::parse_command(std::string command)
 
     // Execute the command
     if (cmd == "head1") {
-        m_ast.push_back(new PodNodeHeadStart(1));
+        m_tokens.push_back(new PodNodeHeadStart(1));
         parse_inline(command.substr(cmd.length()+1));
-        m_ast.push_back(new PodNodeHeadEnd(1));
+        m_tokens.push_back(new PodNodeHeadEnd(1));
     }
     else if (cmd == "head2") {
-        m_ast.push_back(new PodNodeHeadStart(2));
+        m_tokens.push_back(new PodNodeHeadStart(2));
         parse_inline(command.substr(cmd.length()+1));
-        m_ast.push_back(new PodNodeHeadEnd(2));
+        m_tokens.push_back(new PodNodeHeadEnd(2));
     }
     else if (cmd == "head3") {
-        m_ast.push_back(new PodNodeHeadStart(3));
+        m_tokens.push_back(new PodNodeHeadStart(3));
         parse_inline(command.substr(cmd.length()+1));
-        m_ast.push_back(new PodNodeHeadEnd(3));
+        m_tokens.push_back(new PodNodeHeadEnd(3));
     }
     else if (cmd == "head4") {
-        m_ast.push_back(new PodNodeHeadStart(4));
+        m_tokens.push_back(new PodNodeHeadStart(4));
         parse_inline(command.substr(cmd.length()+1));
-        m_ast.push_back(new PodNodeHeadEnd(4));
+        m_tokens.push_back(new PodNodeHeadEnd(4));
     }
     else if (cmd == "pod") {
         // This command is a no-op. It is only valid if found after a =cut command,
@@ -172,16 +172,16 @@ void PodParser::parse_command(std::string command)
     }
     else if (cmd == "over") {
         if (arguments.empty())
-            m_ast.push_back(new PodNodeOver());
+            m_tokens.push_back(new PodNodeOver());
         else
-            m_ast.push_back(new PodNodeOver(std::stof(arguments[0])));
+            m_tokens.push_back(new PodNodeOver(std::stof(arguments[0])));
     }
     else if (cmd == "item") {
         // If there's a preceeding =item, close it (there's none at the beginning
         // of a =over block).
         PodNodeItemStart* p_preceeding_item = find_preceeding_item();
         if (p_preceeding_item)
-            m_ast.push_back(new PodNodeItemEnd(p_preceeding_item->GetListType()));
+            m_tokens.push_back(new PodNodeItemEnd(p_preceeding_item->GetListType()));
 
         // If "=item" is not followed by *, 0-9 or [ (including not being
         // followed by anything, i.e. bare), then it's a shorthand
@@ -193,17 +193,17 @@ void PodParser::parse_command(std::string command)
             arguments.insert(arguments.begin(), "*");
         }
 
-        m_ast.push_back(new PodNodeItemStart(arguments[0]));
+        m_tokens.push_back(new PodNodeItemStart(arguments[0]));
 
         // Any subsequent arguments form a paragraph inside the list.
         // Reconstruct the paragraph from the arguments list, parse it,
-        // and add it to the AST.
+        // and add it to the token list.
         arguments.erase(arguments.begin());
         std::string para = join_vectorstr(arguments, " ");
 
-        m_ast.push_back(new PodNodeParaStart());
+        m_tokens.push_back(new PodNodeParaStart());
         parse_inline(para);
-        m_ast.push_back(new PodNodeParaEnd());
+        m_tokens.push_back(new PodNodeParaEnd());
     }
     else if (cmd == "back") {
         OverListType list_type = OverListType::unordered;
@@ -212,7 +212,7 @@ void PodParser::parse_command(std::string command)
         // of a =over block).
         PodNodeItemStart* p_preceeding_item = find_preceeding_item();
         if (p_preceeding_item) {
-            m_ast.push_back(new PodNodeItemEnd(p_preceeding_item->GetListType()));
+            m_tokens.push_back(new PodNodeItemEnd(p_preceeding_item->GetListType()));
             list_type = p_preceeding_item->GetListType();
 
             // Set the list type. The list type is set from the list's
@@ -227,7 +227,7 @@ void PodParser::parse_command(std::string command)
             std::cerr << "Warning on line " << m_lino << ": empty =over block" << std::endl;
         }
 
-        m_ast.push_back(new PodNodeBack(list_type));
+        m_tokens.push_back(new PodNodeBack(list_type));
     }
     else if (cmd == "begin") {
         m_data_end_tag = std::string("=end ") + arguments[0];
@@ -245,14 +245,14 @@ void PodParser::parse_command(std::string command)
         std::string content = join_vectorstr(arguments, " ");
 
         if (formatname[0] == ':') { // Colon means treat as normal paragraph
-            m_ast.push_back(new PodNodeParaStart());
+            m_tokens.push_back(new PodNodeParaStart());
             parse_inline(content);
-            m_ast.push_back(new PodNodeParaEnd());
+            m_tokens.push_back(new PodNodeParaEnd());
         }
         else { // Shorthand for =begin...=end
             std::vector<std::string> args;
             args.push_back(formatname);
-            m_ast.push_back(new PodNodeData(content, args));
+            m_tokens.push_back(new PodNodeData(content, args));
         }
     }
     else if (cmd == "encoding") {
@@ -278,23 +278,23 @@ void PodParser::parse_verbatim(std::string verbatim)
     // Extend the previous verbatim node, if there is any
     // (i.e. join subsequent verbatim lines).
     PodNodeVerbatim* p_prev_verb = nullptr;
-    if (m_ast.size() > 0)
-        p_prev_verb = dynamic_cast<PodNodeVerbatim*>(m_ast.back());
+    if (m_tokens.size() > 0)
+        p_prev_verb = dynamic_cast<PodNodeVerbatim*>(m_tokens.back());
     if (p_prev_verb) {
         p_prev_verb->AddText("\n");
         p_prev_verb->AddText(verbatim);
     }
     else
-        m_ast.push_back(new PodNodeVerbatim(verbatim));
+        m_tokens.push_back(new PodNodeVerbatim(verbatim));
 }
 
 void PodParser::parse_data(std::string data)
 {
-    m_ast.push_back(new PodNodeData(data, m_data_args));
+    m_tokens.push_back(new PodNodeData(data, m_data_args));
 }
 
 // This function processes `para' as POD inline
-// markup and returns the AST tokens for it. No surrounding
+// markup and returns the tokens for it. No surrounding
 // elements (e.g. paragraph start and end) are included.
 void PodParser::parse_inline(std::string para)
 {
@@ -322,19 +322,19 @@ void PodParser::parse_inline(std::string para)
             switch (para[pos-mel.angle_count]) {
             case 'I':
                 mel.type = mtype::italic;
-                m_ast.push_back(new PodNodeInlineMarkupStart(mel.type));
+                m_tokens.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'B':
                 mel.type = mtype::bold;
-                m_ast.push_back(new PodNodeInlineMarkupStart(mel.type));
+                m_tokens.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'C':
                 mel.type = mtype::code;
-                m_ast.push_back(new PodNodeInlineMarkupStart(mel.type));
+                m_tokens.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'F':
                 mel.type = mtype::filename;
-                m_ast.push_back(new PodNodeInlineMarkupStart(mel.type));
+                m_tokens.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'X':
                 // TODO: Index
@@ -350,12 +350,12 @@ void PodParser::parse_inline(std::string para)
                 break;
             case 'S':
                 mel.type = mtype::nbsp;
-                m_ast.push_back(new PodNodeInlineMarkupStart(mel.type));
+                m_tokens.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             default:
                 std::cerr << "Warning on line " << m_lino << ": Ignoring unknown formatting code '" << para[pos] << "'" << std::endl;
                 mel.type = mtype::none;
-                m_ast.push_back(new PodNodeInlineMarkupStart(mel.type));
+                m_tokens.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             }
 
@@ -371,7 +371,7 @@ void PodParser::parse_inline(std::string para)
 
             // Retrieve preceeding inline text, if there's any (there's none
             // immediately following an opening markup token).
-            PodNodeInlineText* p_prectext = dynamic_cast<PodNodeInlineText*>(m_ast.back());
+            PodNodeInlineText* p_prectext = dynamic_cast<PodNodeInlineText*>(m_tokens.back());
 
             // Check if this is a valid markup close or just stray angle brackets
             if (para.substr(pos, mel.angle_count) == angles) { // Valid
@@ -383,7 +383,7 @@ void PodParser::parse_inline(std::string para)
                     p_prectext->StripTrailingWhitespace();
 
                 // Insert End marker
-                m_ast.push_back(new PodNodeInlineMarkupEnd(mel.type));
+                m_tokens.push_back(new PodNodeInlineMarkupEnd(mel.type));
             }
             else { // Stray angle brackets
                 // Not enough closing angles. Insert as plain text.
@@ -394,19 +394,19 @@ void PodParser::parse_inline(std::string para)
                 if (p_prectext)
                     p_prectext->AddText(s);
                 else
-                    m_ast.push_back(new PodNodeInlineText(s));
+                    m_tokens.push_back(new PodNodeInlineText(s));
             }
         }
         else { // No inline markup: plain text
             // Append to last text node if exists, otherwise
             // make a new text node.
-            PodNodeInlineText* p_prectext = dynamic_cast<PodNodeInlineText*>(m_ast.back());
+            PodNodeInlineText* p_prectext = dynamic_cast<PodNodeInlineText*>(m_tokens.back());
             std::string s(para.substr(pos, 1));
             html_escape(s, is_nbsp_mode_active());
             if (p_prectext)
                 p_prectext->AddText(s);
             else
-                m_ast.push_back(new PodNodeInlineText(s));
+                m_tokens.push_back(new PodNodeInlineText(s));
         }
     }
 }
@@ -417,7 +417,7 @@ PodNodeItemStart* PodParser::find_preceeding_item() {
     PodNodeItemStart* p_item = nullptr;
     int level = 0;
 
-    for(auto iter=m_ast.rbegin(); iter != m_ast.rend(); iter++) {
+    for(auto iter=m_tokens.rbegin(); iter != m_tokens.rend(); iter++) {
         if (dynamic_cast<PodNodeBack*>(*iter))
             level++;
         else if (level > 0 && dynamic_cast<PodNodeOver*>(*iter)) // >0 to ignore opening =over of current list
@@ -440,7 +440,7 @@ bool PodParser::is_nbsp_mode_active()
     PodNodeInlineMarkupStart* p_mstart = nullptr;
     int level = 0;
 
-    for(auto iter=m_ast.rbegin(); iter != m_ast.rend(); iter++) {
+    for(auto iter=m_tokens.rbegin(); iter != m_tokens.rend(); iter++) {
         if ((p_mend = dynamic_cast<PodNodeInlineMarkupEnd*>(*iter))) { // Single = intended
             if (p_mend->GetMtype() == mtype::nbsp) {
                 level--;
@@ -463,7 +463,7 @@ PodNodeOver* PodParser::find_preceeding_over() {
     PodNodeOver* p_over = nullptr;
     int level = 0;
 
-    for(auto iter=m_ast.rbegin(); iter != m_ast.rend(); iter++) {
+    for(auto iter=m_tokens.rbegin(); iter != m_tokens.rend(); iter++) {
         if (dynamic_cast<PodNodeBack*>(*iter)) {
             level++;
         }
@@ -484,8 +484,8 @@ PodNodeOver* PodParser::find_preceeding_over() {
  * Formatter
  **************************************/
 
-PodHTMLFormatter::PodHTMLFormatter(const std::vector<PodNode*>& ast)
-    : m_ast(ast)
+PodHTMLFormatter::PodHTMLFormatter(const std::vector<PodNode*>& tokens)
+    : m_tokens(tokens)
 {
 }
 
@@ -493,7 +493,7 @@ std::string PodHTMLFormatter::FormatHTML()
 {
     std::string result;
 
-    for (const PodNode* p_node: m_ast) {
+    for (const PodNode* p_node: m_tokens) {
         result += p_node->ToHTML();
     }
 

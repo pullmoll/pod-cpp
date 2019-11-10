@@ -164,7 +164,7 @@ public:
     ~PodParser();
 
     void Parse();
-    inline const std::vector<PodNode*>& GetAST() { return m_ast; };
+    inline const std::vector<PodNode*>& GetTokens() { return m_tokens; };
 
 private:
     void parse_line(const std::string& line);
@@ -190,7 +190,7 @@ private:
     mode m_mode;
     const std::string& m_source_markup;
     size_t m_verbatim_lead_space;
-    std::vector<PodNode*> m_ast;
+    std::vector<PodNode*> m_tokens;
     std::string m_current_buffer;
     std::string m_data_end_tag;
     std::vector<std::string> m_data_args;
@@ -199,10 +199,10 @@ private:
 class PodHTMLFormatter
 {
 public:
-    PodHTMLFormatter(const std::vector<PodNode*>& ast);
+    PodHTMLFormatter(const std::vector<PodNode*>& tokens);
     std::string FormatHTML();
 private:
-    const std::vector<PodNode*>& m_ast;
+    const std::vector<PodNode*>& m_tokens;
 };
 
 // Counts the leading spaces and tabs in +str+.
