@@ -97,7 +97,8 @@ enum class mtype {
     italic,
     bold,
     code,
-    filename
+    filename,
+    nbsp
 };
 
 class PodNodeInlineMarkupStart: public PodNode
@@ -105,6 +106,7 @@ class PodNodeInlineMarkupStart: public PodNode
 public:
     PodNodeInlineMarkupStart(mtype type, std::vector<std::string> args = std::vector<std::string>());
     virtual std::string ToHTML() const;
+    inline mtype GetMtype() const { return m_mtype; };
 private:
     mtype m_mtype;
     std::vector<std::string> m_args;
@@ -115,6 +117,7 @@ class PodNodeInlineMarkupEnd: public PodNode
 public:
     PodNodeInlineMarkupEnd(mtype type, std::vector<std::string> args = std::vector<std::string>());
     virtual std::string ToHTML() const;
+    inline mtype GetMtype() const { return m_mtype; };
 private:
     mtype m_mtype;
     std::vector<std::string> m_args;
@@ -172,6 +175,7 @@ private:
     void parse_inline(std::string para);
     PodNodeItemStart* find_preceeding_item();
     PodNodeOver* find_preceeding_over();
+    bool is_nbsp_mode_active();
 
     enum class mode {
         none,
@@ -205,7 +209,8 @@ private:
 size_t count_leading_whitespace(const std::string& str);
 // Joins all the strings in `vec' into one string separated by `separator'.
 std::string join_vectorstr(const std::vector<std::string>& vec, const std::string& separator);
-// Mask all occurences of &, <, and >.
-void html_escape(std::string& str);
+// Mask all occurences of &, <, and >. If `nbsp' is
+// true, masks spaces as "&nbsp;".
+void html_escape(std::string& str, bool nbsp = false);
 
 #endif /* SCRDG_POD_HPP */

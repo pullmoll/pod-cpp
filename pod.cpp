@@ -349,7 +349,8 @@ void PodParser::parse_inline(std::string para)
                 // TODO: Escape code
                 break;
             case 'S':
-                // TODO: nbsp
+                mel.type = mtype::nbsp;
+                m_ast.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             default:
                 std::cerr << "Warning on line " << m_lino << ": Ignoring unknown formatting code '" << para[pos] << "'" << std::endl;
@@ -401,7 +402,7 @@ void PodParser::parse_inline(std::string para)
             // make a new text node.
             PodNodeInlineText* p_prectext = dynamic_cast<PodNodeInlineText*>(m_ast.back());
             std::string s(para.substr(pos, 1));
-            html_escape(s);
+            html_escape(s, is_nbsp_mode_active());
             if (p_prectext)
                 p_prectext->AddText(s);
             else
@@ -426,6 +427,33 @@ PodNodeItemStart* PodParser::find_preceeding_item() {
     }
 
     return nullptr; // No preceeding =item on the same level
+}
+
+// Checks if the parser at the current point is inside an
+// opened S<> formatting code. This function allows S<>
+// to be nested theoretically. Doing so has probably no
+// other use than trying to confuse the POD parser as
+// the effect of S<> cannot be cancelled from the inside.
+bool PodParser::is_nbsp_mode_active()
+{
+    PodNodeInlineMarkupEnd* p_mend = nullptr;
+    PodNodeInlineMarkupStart* p_mstart = nullptr;
+    int level = 0;
+
+    for(auto iter=m_ast.rbegin(); iter != m_ast.rend(); iter++) {
+        if ((p_mend = dynamic_cast<PodNodeInlineMarkupEnd*>(*iter))) { // Single = intended
+            if (p_mend->GetMtype() == mtype::nbsp) {
+                level--;
+            }
+        }
+        else if ((p_mstart = dynamic_cast<PodNodeInlineMarkupStart*>(*iter))) { // Single = intended
+            if (p_mstart->GetMtype() == mtype::nbsp) {
+                level++;
+            }
+        }
+    }
+
+    return level > 0;
 }
 
 // Finds the =over that corresponds to the current indent level.
@@ -642,6 +670,7 @@ std::string PodNodeInlineMarkupStart::ToHTML() const
 {
     switch (m_mtype) {
     case mtype::none:
+    case mtype::nbsp: // fall-through
         return "";
     case mtype::italic:
         return "<i>";
@@ -666,6 +695,7 @@ std::string PodNodeInlineMarkupEnd::ToHTML() const
 {
     switch (m_mtype) {
     case mtype::none:
+    case mtype::nbsp: // fall-through
         return "";
     case mtype::italic:
         return "</i>";
@@ -734,7 +764,7 @@ std::string join_vectorstr(const std::vector<std::string>& vec, const std::strin
     return result;
 }
 
-void html_escape(std::string& str)
+void html_escape(std::string& str, bool nbsp)
 {
     size_t pos = 0;
     while ((pos = str.find("&")) != std::string::npos)
@@ -743,4 +773,7 @@ void html_escape(std::string& str)
         str.replace(pos, 1, "&lt;");
     while ((pos = str.find(">")) != std::string::npos)
         str.replace(pos, 1, "&gt;");
+    if (nbsp)
+        while ((pos = str.find(" ")) != std::string::npos)
+            str.replace(pos, 1, "&nbsp;");
 }
