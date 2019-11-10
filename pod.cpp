@@ -31,6 +31,7 @@ void PodParser::Parse()
     m_verbatim_lead_space = 0;
     m_current_buffer.clear();
     m_data_end_tag.clear();
+    m_ecode.clear();
 
     while (std::getline(ss, line)) {
         m_lino++;
@@ -318,6 +319,13 @@ void PodParser::parse_inline(std::string para)
                 pos++;
             }
 
+            if (is_inline_mode_active(mtype::zap)) {
+                std::cerr << "Warning on line " << m_lino << ": Z<> may not contain further formatting codes" << std::endl;
+            }
+            else if (is_inline_mode_active(mtype::escape)) {
+                std::cerr << "Warning on line " << m_lino << ": E<> may not contain further formatting codes" << std::endl;
+            }
+
             mel.type = mtype::none;
             switch (para[pos-mel.angle_count]) {
             case 'I':
@@ -347,7 +355,8 @@ void PodParser::parse_inline(std::string para)
                 // TODO: Hyperlink
                 break;
             case 'E':
-                // TODO: Escape code
+                mel.type = mtype::escape;
+                m_tokens.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'S':
                 mel.type = mtype::nbsp;
@@ -384,7 +393,13 @@ void PodParser::parse_inline(std::string para)
                     p_prectext->StripTrailingWhitespace();
 
                 // Insert End marker
-                m_tokens.push_back(new PodNodeInlineMarkupEnd(mel.type));
+                if (mel.type == mtype::escape) {
+                    m_tokens.push_back(new PodNodeInlineMarkupEnd(mel.type, {m_ecode}));
+                    m_ecode.clear();
+                }
+                else {
+                    m_tokens.push_back(new PodNodeInlineMarkupEnd(mel.type));
+                }
             }
             else { // Stray angle brackets
                 // Not enough closing angles. Insert as plain text.
@@ -399,15 +414,20 @@ void PodParser::parse_inline(std::string para)
             }
         }
         else { // No inline markup: plain text
-            // Append to last text node if exists, otherwise
-            // make a new text node.
-            PodNodeInlineText* p_prectext = dynamic_cast<PodNodeInlineText*>(m_tokens.back());
-            std::string s(para.substr(pos, 1));
-            html_escape(s, is_inline_mode_active(mtype::nbsp));
-            if (p_prectext)
-                p_prectext->AddText(s);
-            else
-                m_tokens.push_back(new PodNodeInlineText(s));
+            if (is_inline_mode_active(mtype::escape)) { // Escape code
+                m_ecode += para.substr(pos, 1);
+            }
+            else { // Actual text
+                // Append to last text node if exists, otherwise
+                // make a new text node.
+                PodNodeInlineText* p_prectext = dynamic_cast<PodNodeInlineText*>(m_tokens.back());
+                std::string s(para.substr(pos, 1));
+                html_escape(s, is_inline_mode_active(mtype::nbsp));
+                if (p_prectext)
+                    p_prectext->AddText(s);
+                else
+                    m_tokens.push_back(new PodNodeInlineText(s));
+            }
         }
     }
 
@@ -722,7 +742,7 @@ std::string PodNodeInlineText::ToHTML() const
     return m_text;
 }
 
-PodNodeInlineMarkupStart::PodNodeInlineMarkupStart(mtype type, std::vector<std::string> args)
+PodNodeInlineMarkupStart::PodNodeInlineMarkupStart(mtype type, std::initializer_list<std::string> args)
     : m_mtype(type),
       m_args(args)
 {
@@ -732,8 +752,9 @@ std::string PodNodeInlineMarkupStart::ToHTML() const
 {
     switch (m_mtype) {
     case mtype::none:
-    case mtype::nbsp: // fall-through
-    case mtype::zap:  // fall-through
+    case mtype::nbsp:   // fall-through
+    case mtype::zap:    // fall-through
+    case mtype::escape: // fall-through
         return "";
     case mtype::italic:
         return "<i>";
@@ -748,7 +769,7 @@ std::string PodNodeInlineMarkupStart::ToHTML() const
     throw(std::runtime_error("This should never be reached"));
 }
 
-PodNodeInlineMarkupEnd::PodNodeInlineMarkupEnd(mtype type, std::vector<std::string> args)
+PodNodeInlineMarkupEnd::PodNodeInlineMarkupEnd(mtype type, std::initializer_list<std::string> args)
     : m_mtype(type),
       m_args(args)
 {
@@ -769,6 +790,17 @@ std::string PodNodeInlineMarkupEnd::ToHTML() const
         return "</tt>";
     case mtype::filename:
         return "</span>";
+    case mtype::escape:
+        if (m_args[0] == "verbar")
+            return "|";
+        else if (m_args[0] == "sol")
+            return "/";
+        else if (m_args[0] == "lchevron")
+            return "&laquo;";
+        else if (m_args[0] == "rchevron")
+            return "&raquo;";
+        else // FIXME: Check if args[0] is actually a valid escape code
+            return std::string("&") + m_args[0] + ";";
     }
 
     throw(std::runtime_error("This should never be reached"));

@@ -99,13 +99,14 @@ enum class mtype {
     code,
     filename,
     nbsp,
-    zap
+    zap,
+    escape
 };
 
 class PodNodeInlineMarkupStart: public PodNode
 {
 public:
-    PodNodeInlineMarkupStart(mtype type, std::vector<std::string> args = std::vector<std::string>());
+    PodNodeInlineMarkupStart(mtype type, std::initializer_list<std::string> args = {});
     virtual std::string ToHTML() const;
     inline mtype GetMtype() const { return m_mtype; };
 private:
@@ -116,7 +117,7 @@ private:
 class PodNodeInlineMarkupEnd: public PodNode
 {
 public:
-    PodNodeInlineMarkupEnd(mtype type, std::vector<std::string> args = std::vector<std::string>());
+    PodNodeInlineMarkupEnd(mtype type, std::initializer_list<std::string> args = {});
     virtual std::string ToHTML() const;
     inline mtype GetMtype() const { return m_mtype; };
 private:
@@ -196,6 +197,7 @@ private:
     std::string m_current_buffer;
     std::string m_data_end_tag;
     std::vector<std::string> m_data_args;
+    std::string m_ecode;
 };
 
 class PodHTMLFormatter
