@@ -210,6 +210,7 @@ public:
               std::string (*mcb)(bool, std::string));
     ~PodParser();
 
+    void Reset(const std::string& str);
     void Parse();
     inline const std::vector<PodNode*>& GetTokens() { return m_tokens; };
     // Returns the found X<> index entries as a map of form:

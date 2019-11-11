@@ -75,6 +75,19 @@ PodParser::~PodParser()
     }
 }
 
+/**
+ * Clear internal state and remap the parser to point to `str'.
+ * Calling Parse() subsequently will parse `str' instead of what was
+ * passed to the constructor.
+ */
+void PodParser::Reset(const std::string& str)
+{
+    m_source_markup = str;
+    m_lino = 0;
+    m_tokens.clear();
+    m_idx_keywords.clear();
+}
+
 /// Start the actual parsing operation (expensive, blocks).
 void PodParser::Parse()
 {
@@ -89,7 +102,6 @@ void PodParser::Parse()
     m_verbatim_lead_space = 0;
     m_current_buffer.clear();
     m_data_end_tag.clear();
-    m_idx_keywords.clear();
     m_ecode.clear();
     m_idx_kw.clear();
 
