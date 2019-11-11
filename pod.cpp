@@ -5,10 +5,33 @@
 #include <algorithm>
 #include <stack>
 
-PodParser::PodParser(const std::string& str)
+/**
+ * Creates a new parser for the POD format. `str' is the string to
+ * parse. `fcb' is a function pointer pointing to a callback function
+ * that takes as argument a class or module name as std::string and is
+ * required to return as an std::string the filename the class or
+ * module is documented in. The value will be used as-is in HTML A
+ * tags' HREF attributes, thus it is up to you to find out whether a
+ * relative or absolute filename is required. `mcb' is a callback
+ * that is expected to generate a string suitable for HTML A tags'
+ * HREF attributes given a method name as an std::string (without
+ * class/module information) and a boolean that indicates whether
+ * this is a class/module or instance method.
+ *
+ * Implementation notice: The design with callbacks allows to
+ * decouple the parser's logic completely from the generator's logic,
+ * while still taking advantage of the existing filename and
+ * method name id generation functions in the generator.
+ */
+PodParser::PodParser(const std::string& str,
+                     std::string (*fcb)(std::string),
+                     std::string (*mcb)(bool, std::string))
     : m_lino(0),
       m_mode(mode::none),
+      m_link_bar_found(false),
       m_source_markup(str),
+      m_filename_cb(fcb),
+      m_mname_cb(mcb),
       m_verbatim_lead_space(0)
 {
 }
@@ -20,6 +43,7 @@ PodParser::~PodParser()
     }
 }
 
+/// Start the actual parsing operation (expensive, blocks).
 void PodParser::Parse()
 {
     if (m_source_markup.empty())
@@ -29,6 +53,7 @@ void PodParser::Parse()
     std::string line;
 
     m_mode = mode::none;
+    m_link_bar_found = false;
     m_verbatim_lead_space = 0;
     m_current_buffer.clear();
     m_data_end_tag.clear();
@@ -307,10 +332,6 @@ void PodParser::parse_inline(std::string para)
         mtype type;
     };
 
-    if (m_source_markup.find("<LevelClass>") != std::string::npos) {
-        std::cout << para << std::endl;
-    }
-
     std::stack<markupel> inline_stack;
     markupel mel;
     for (size_t pos=0; pos < para.length(); pos++) {
@@ -330,6 +351,9 @@ void PodParser::parse_inline(std::string para)
             }
             else if (is_inline_mode_active(mtype::index)) {
                 std::cerr << "Warning on line " << m_lino << ": X<> may not contain further formatting codes" << std::endl;
+            }
+            else if (m_link_bar_found) {
+                std::cerr << "Warning on line " << m_lino << ": L<>'s link target may not contain formatting codes" << std::endl;
             }
 
             mel.type = mtype::none;
@@ -359,7 +383,8 @@ void PodParser::parse_inline(std::string para)
                 m_tokens.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'L':
-                // TODO: Hyperlink
+                mel.type = mtype::link;
+                m_tokens.push_back(new PodNodeInlineMarkupStart(mel.type));
                 break;
             case 'E':
                 mel.type = mtype::escape;
@@ -403,7 +428,7 @@ void PodParser::parse_inline(std::string para)
                 switch (mel.type) {
                 case mtype::escape:
                     m_tokens.push_back(new PodNodeInlineMarkupEnd(mel.type, {m_ecode}));
-                    m_ecode.clear();
+                    m_ecode.clear(); // E<> may not nest
                     break;
                 case mtype::index: {
                     std::string target(m_idx_kw);
@@ -411,7 +436,17 @@ void PodParser::parse_inline(std::string para)
 
                     m_tokens.push_back(new PodNodeInlineMarkupEnd(mel.type, {target}));
                     m_idx_keywords[m_idx_kw] = target;
-                    m_idx_kw.clear(); }
+                    m_idx_kw.clear(); } // X<> may not nest
+                    break;
+                case mtype::link: {
+                    PodNodeInlineMarkupStart* p_lstart = find_preceeding_inline_markup_start(mtype::link);
+                    p_lstart->AddArgument(m_link_content);
+                    p_lstart->SetFilenameCallback(m_filename_cb);
+                    p_lstart->SetMethodnameCallback(m_mname_cb);
+
+                    m_tokens.push_back(new PodNodeInlineMarkupEnd(mel.type));
+                    m_link_bar_found = false;
+                    m_link_content.clear(); } // L<> may not nest
                     break;
                 default:
                     m_tokens.push_back(new PodNodeInlineMarkupEnd(mel.type));
@@ -428,6 +463,11 @@ void PodParser::parse_inline(std::string para)
                     p_prectext->AddText(s);
                 else
                     m_tokens.push_back(new PodNodeInlineText(s));
+
+                // Same as below for normal actual text
+                if (is_inline_mode_active(mtype::link)) {
+                    m_link_content += para.substr(pos, 1);
+                }
             }
         }
         else { // No inline markup: plain text
@@ -438,6 +478,25 @@ void PodParser::parse_inline(std::string para)
                 m_idx_kw += para.substr(pos, 1);
             }
             else { // Actual text
+                /* L<> content handling; the parser needs the entire
+                 * link's content later on in PodNodeInlineMarkup::ToHTML().
+                 * But, if a bar | is found, this terminates the link's
+                 * visible text, separating it from the target. The following
+                 * code makes it impossible to use | inside the link text,
+                 * even inside another formatting code, but this is deemed
+                 * rare enough to ignore the condition. Finally, using
+                 * any kind of formatting markup in the link *target* is
+                 * unsupported (this is a deviation from canonical POD markup). */
+                if (is_inline_mode_active(mtype::link)) {
+                    m_link_content += para.substr(pos, 1);
+
+                    if (para[pos] == '|') {
+                        m_link_bar_found = true;
+                    }
+                }
+                if (m_link_bar_found) // Visible link text has ended
+                    continue;
+
                 // Append to last text node if exists, otherwise
                 // make a new text node.
                 PodNodeInlineText* p_prectext = dynamic_cast<PodNodeInlineText*>(m_tokens.back());
@@ -495,6 +554,33 @@ PodNodeOver* PodParser::find_preceeding_over() {
     }
 
     return nullptr; // Not inside an =over block
+}
+
+// Assumes an open formatting code and finds the PodNodeInlineMarkupStart*
+// that opened it, returning it. If `t' is mtype::none, any
+// opening PodNodeInlineMarkupStart* suffices, otherwise the
+// search is restricted to those of type `t'.
+PodNodeInlineMarkupStart* PodParser::find_preceeding_inline_markup_start(mtype t)
+{
+    PodNodeInlineMarkupStart* p_mstart = nullptr;
+    int level = 0;
+
+    for (auto iter=m_tokens.rbegin(); iter != m_tokens.rend(); iter++) {
+        if (dynamic_cast<PodNodeInlineMarkupEnd*>(*iter)) {
+            level++;
+        }
+        else if (level > 0 && dynamic_cast<PodNodeInlineMarkupStart*>(*iter)) {
+            level--;
+        }
+        else if (level == 0 && (p_mstart = dynamic_cast<PodNodeInlineMarkupStart*>(*iter))) {
+            if (t == mtype::none)
+                return p_mstart;
+            else if (p_mstart->GetMtype() == t)
+                return p_mstart;
+        }
+    }
+
+    throw(std::runtime_error("Bug: Impossible condition reached: no preceeding inline markup start found"));
 }
 
 // Checks if the parser at the current point is inside an opened
@@ -785,12 +871,39 @@ std::string PodNodeInlineText::ToHTML() const
 
 PodNodeInlineMarkupStart::PodNodeInlineMarkupStart(mtype type, std::initializer_list<std::string> args)
     : m_mtype(type),
-      m_args(args)
+      m_args(args),
+      m_filename_cb(nullptr),
+      m_mname_cb(nullptr)
 {
+}
+
+// If for whatever reason the PodNodeInlineMarkupStart cannot be constructed
+// directly with the argument list, use this function to inject the arguments
+// later on.
+void PodNodeInlineMarkupStart::AddArgument(const std::string& arg)
+{
+    m_args.push_back(arg);
+}
+
+// Set the filename calculation callback used for calculating L<> internal
+// link targets.
+void PodNodeInlineMarkupStart::SetFilenameCallback(std::string (*cb)(std::string))
+{
+    m_filename_cb = cb;
+}
+
+// Set the method name ID calculation callback used for calculating L<> internal
+// link targets.
+void PodNodeInlineMarkupStart::SetMethodnameCallback(std::string (*cb)(bool, std::string))
+{
+    m_mname_cb = cb;
 }
 
 std::string PodNodeInlineMarkupStart::ToHTML() const
 {
+    size_t pos = std::string::npos;
+    std::string link_target;
+
     switch (m_mtype) {
     case mtype::none:
     case mtype::nbsp:   // fall-through
@@ -806,6 +919,67 @@ std::string PodNodeInlineMarkupStart::ToHTML() const
         return "<tt>";
     case mtype::filename:
         return "<span class=\"filename\">";
+    case mtype::link:
+        if ((pos = m_args[0].find('|')) != std::string::npos) // Single = intended
+            link_target = m_args[0].substr(pos+1);
+        else // Implicit link target
+            link_target = m_args[0];
+
+        if (link_target.find('<') != std::string::npos) {
+            std::cerr << "Warning: Use of formatting codes inside link target '" << link_target << "' is unsupported (deviation from canonical POD syntax)" << std::endl;
+        }
+
+        if (link_target.find("://") == std::string::npos) { // Target is no url
+            // Check if UNIX man(1) page. (= special kind of external link)
+            std::string manpage;
+            std::string section;
+            if (check_manpage(link_target, manpage, section)) { // It's a manpage.
+                return std::string("<a href=\"https://linux.die.net/man/") + section + "/" + manpage + "\">";
+            }
+            /* It's a link to something in the docs itself (= internal link)
+             * There are two kind of these:
+             * 1. Thing/section, with /section being optional (meaning a heading)
+             * 2. Thing#method or Thing::method, with #method and ::method being optional
+             *    This is an extension over canonical POD markup.
+             * That is, "Thing" alone is ambiguous. But as it evaluates
+             * to the same target (`classmodname' below), this is not
+             * relevant. It's processed via variant 1. */
+            if (((pos = link_target.find("#")) != std::string::npos) ||
+                ((pos = link_target.find("::")) != std::string::npos)) { // Variant 2
+                bool is_cmethod = link_target[pos] == ':';
+                std::string classmodname = link_target.substr(0, pos);
+                std::string methodname   = link_target.substr(is_cmethod ? pos+2 : pos+1);
+                return std::string("<a href=\"") + m_filename_cb(classmodname) + "#" + m_mname_cb(is_cmethod, methodname) + "\">";
+            }
+            else { // Variant 1
+                // Split class/module name off section link at the slash, if present.
+                std::string classmodname;
+                if ((pos = link_target.find("/")) != std::string::npos) {
+                    classmodname = link_target.substr(0, pos);
+                    section = link_target.substr(pos+1);
+                }
+                else
+                    classmodname = link_target;
+
+                if (classmodname.empty()) { // Means link to section in current document
+                    if (section.empty())
+                        std::cerr << "Warning: empty link target" << std::endl;
+
+                    return std::string("<a href=\"#") + PodParser::MakeHeadingAnchorName(section) + "\">";
+                }
+                else { // Means link to different document
+                    if (section.empty()) {
+                        return std::string("<a href=\"") + m_filename_cb(classmodname) + "\">";
+                    }
+                    else {
+                        return std::string("<a href=\"") + m_filename_cb(classmodname) + "#" + PodParser::MakeHeadingAnchorName(section) + "\">";
+                    }
+                }
+            }
+        }
+        else { // Target is url (= external link)
+            return std::string("<a href=\"") + link_target + "\">";
+        }
     }
 
     throw(std::runtime_error("This should never be reached"));
@@ -832,6 +1006,8 @@ std::string PodNodeInlineMarkupEnd::ToHTML() const
         return "</tt>";
     case mtype::filename:
         return "</span>";
+    case mtype::link:
+        return "</a>";
     case mtype::escape:
         if (m_args[0] == "verbar")
             return "|";
@@ -916,4 +1092,19 @@ void html_escape(std::string& str, bool nbsp)
     if (nbsp)
         while ((pos = str.find(" ")) != std::string::npos)
             str.replace(pos, 1, "&nbsp;");
+}
+
+bool check_manpage(const std::string& target, std::string& manpage, std::string& section)
+{
+    if ((target.find(' ') == std::string::npos) &&
+        (target.rfind(")") == target.size() - 1) &&
+        (target.rfind("(") == target.size() - 3) &&
+        (target[target.size() - 2] >= '0') &&
+        (target[target.size() - 2] <= '9'))
+    {
+        manpage = target.substr(0, target.rfind("("));
+        section = target.substr(target.size() - 2, 1);
+        return true;
+    }
+    return false;
 }

@@ -103,7 +103,8 @@ enum class mtype {
     nbsp,
     zap,
     escape,
-    index
+    index,
+    link
 };
 
 class PodNodeInlineMarkupStart: public PodNode
@@ -112,9 +113,16 @@ public:
     PodNodeInlineMarkupStart(mtype type, std::initializer_list<std::string> args = {});
     virtual std::string ToHTML() const;
     inline mtype GetMtype() const { return m_mtype; };
+
+    // These three are only used for mtype::link:
+    void AddArgument(const std::string& arg);
+    void SetFilenameCallback(std::string (*cb)(std::string));
+    void SetMethodnameCallback(std::string (*cb)(bool, std::string));
 private:
     mtype m_mtype;
     std::vector<std::string> m_args;
+    std::string (*m_filename_cb)(std::string);
+    std::string (*m_mname_cb)(bool, std::string);
 };
 
 class PodNodeInlineMarkupEnd: public PodNode
@@ -165,7 +173,9 @@ private:
 class PodParser
 {
 public:
-    PodParser(const std::string& str);
+    PodParser(const std::string& str,
+              std::string (*fcb)(std::string),
+              std::string (*mcb)(bool, std::string));
     ~PodParser();
 
     void Parse();
@@ -184,6 +194,7 @@ private:
     void parse_inline(std::string para);
     PodNodeItemStart* find_preceeding_item();
     PodNodeOver* find_preceeding_over();
+    PodNodeInlineMarkupStart* find_preceeding_inline_markup_start(mtype t);
     bool is_inline_mode_active(mtype t);
     void zap_tokens();
 
@@ -198,7 +209,10 @@ private:
 
     long m_lino;
     mode m_mode;
+    bool m_link_bar_found;
     const std::string& m_source_markup;
+    std::string (*m_filename_cb)(std::string);
+    std::string (*m_mname_cb)(bool, std::string);
     size_t m_verbatim_lead_space;
     std::vector<PodNode*> m_tokens;
     std::string m_current_buffer;
@@ -207,6 +221,7 @@ private:
     std::map<std::string, std::string> m_idx_keywords;
     std::string m_ecode;
     std::string m_idx_kw;
+    std::string m_link_content;
 };
 
 class PodHTMLFormatter
@@ -225,5 +240,14 @@ std::string join_vectorstr(const std::vector<std::string>& vec, const std::strin
 // Mask all occurences of &, <, and >. If `nbsp' is
 // true, masks spaces as "&nbsp;".
 void html_escape(std::string& str, bool nbsp = false);
+/* Checks if `target' is a UNIX man(1) page. Rule: If no spaces and a
+ * digit in parentheses and the end, it's a manpage. If `target' is
+ * found to be a manpage, true is returned, and `manpage' is set to
+ * the man page's linkable name and `section' to the section the
+ * manpage resides in. Otherwise, false is returned and `manpage'
+ * and `section' are left untouched.
+ *
+ * FIXME: Ignores manpages with unusual letter sections (e.g. 3p) */
+bool check_manpage(const std::string& target, std::string& manpage, std::string& section);
 
 #endif /* SCRDG_POD_HPP */
