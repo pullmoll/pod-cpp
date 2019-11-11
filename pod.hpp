@@ -40,6 +40,8 @@
  * - https://perldoc.perl.org/perlpodspec.html
  */
 
+namespace Pod {
+
 class PodNode
 {
 public:
@@ -279,5 +281,7 @@ void html_escape(std::string& str, bool nbsp = false);
  *
  * FIXME: Ignores manpages with unusual letter sections (e.g. 3p) */
 bool check_manpage(const std::string& target, std::string& manpage, std::string& section);
+
+}
 
 #endif /* POD_HPP */

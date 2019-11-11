@@ -35,6 +35,8 @@
 #include <algorithm>
 #include <stack>
 
+using namespace Pod;
+
 /**
  * Creates a new parser for the POD format. `str' is the string to
  * parse. `fcb' is a function pointer pointing to a callback function
@@ -361,10 +363,6 @@ void PodParser::parse_inline(std::string para)
         size_t angle_count;
         mtype type;
     };
-
-    if (m_source_markup.find("<LevelClass>") != std::string::npos) {
-        std::cout << para << std::endl;
-    }
 
     std::stack<markupel> inline_stack;
     markupel mel;
@@ -1093,7 +1091,7 @@ std::string PodNodeVerbatim::ToHTML() const
  * Helpers
  **************************************/
 
-size_t count_leading_whitespace(const std::string& str)
+size_t Pod::count_leading_whitespace(const std::string& str)
 {
     size_t count = 0;
     while (str[count] == ' ' || str[count] == '\t')
@@ -1101,7 +1099,7 @@ size_t count_leading_whitespace(const std::string& str)
     return count;
 }
 
-std::string join_vectorstr(const std::vector<std::string>& vec, const std::string& separator)
+std::string Pod::join_vectorstr(const std::vector<std::string>& vec, const std::string& separator)
 {
     std::string result;
     for(size_t i=0; i < vec.size(); i++) {
@@ -1114,7 +1112,7 @@ std::string join_vectorstr(const std::vector<std::string>& vec, const std::strin
     return result;
 }
 
-void html_escape(std::string& str, bool nbsp)
+void Pod::html_escape(std::string& str, bool nbsp)
 {
     size_t pos = 0;
     while ((pos = str.find("&")) != std::string::npos)
@@ -1128,7 +1126,7 @@ void html_escape(std::string& str, bool nbsp)
             str.replace(pos, 1, "&nbsp;");
 }
 
-bool check_manpage(const std::string& target, std::string& manpage, std::string& section)
+bool Pod::check_manpage(const std::string& target, std::string& manpage, std::string& section)
 {
     if ((target.find(' ') == std::string::npos) &&
         (target.rfind(")") == target.size() - 1) &&
