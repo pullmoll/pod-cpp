@@ -266,14 +266,32 @@ void PodParser::parse_command(std::string command)
             arguments.insert(arguments.begin(), "*");
         }
 
-        m_tokens.push_back(new PodNodeItemStart(arguments[0]));
+        /* The first arguments gives the list type, any subsequent
+         * arguments form a paragraph inside the list. Thus,
+         * reconstruct the paragraph from the arguments list, parse
+         * it, and add it to the token list. Definition lists need
+         * special care as the definition term inside [] may contain
+         * spaces, thus the definition term spreads over multiple
+         * arguments. */
+        if (arguments[0][0] == '[') { // Definition list
+            std::string dt;
+            for(auto iter=arguments.begin(); iter != arguments.end(); arguments.erase(iter)) {
+                dt += *iter;
+                if ((*iter).rfind(']') != std::string::npos) {
+                    arguments.erase(iter);
+                    break;
+                }
+                dt += " ";
+            }
 
-        // Any subsequent arguments form a paragraph inside the list.
-        // Reconstruct the paragraph from the arguments list, parse it,
-        // and add it to the token list.
-        arguments.erase(arguments.begin());
+            m_tokens.push_back(new PodNodeItemStart(dt));
+        }
+        else { // Not a definition list
+            m_tokens.push_back(new PodNodeItemStart(arguments[0]));
+            arguments.erase(arguments.begin());
+        }
+
         std::string para = join_vectorstr(arguments, " ");
-
         m_tokens.push_back(new PodNodeParaStart());
         parse_inline(para);
         m_tokens.push_back(new PodNodeParaEnd());
