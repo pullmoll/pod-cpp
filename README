@@ -19,9 +19,14 @@ ToYourOutput() methods yourself.
 The C++ POD parser is written in C++11 and has no external
 dependencies. It is recommended to insert the two files directly into
 your project, but a simple Makefile is provided for building it as a
-library.
+library so it is possible to run:
 
-Include the header:
+    $ make
+
+This is going to create a static and a shared library named
+libpod-cpp.a and libpod-cpp.so, respectively.
+
+After building the C++ POD parser, include the header:
 
     #include "pod.hpp"
 
