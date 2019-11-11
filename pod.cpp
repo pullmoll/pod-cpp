@@ -1140,7 +1140,7 @@ std::string Pod::join_vectorstr(const std::vector<std::string>& vec, const std::
 void Pod::html_escape(std::string& str, bool nbsp)
 {
     size_t pos = 0;
-    while ((pos = str.find("&")) != std::string::npos)
+    while ((pos = str.find("&")) != std::string::npos && str.substr(pos, 5) != "&amp;")
         str.replace(pos, 1, "&amp;");
     while ((pos = str.find("<")) != std::string::npos)
         str.replace(pos, 1, "&lt;");
