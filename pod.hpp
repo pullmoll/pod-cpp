@@ -34,7 +34,7 @@
 #include <map>
 #include <initializer_list>
 
-#define SCRDG_POD_HPP
+#define POD_HPP
 /* These classes implement the Perl POD documentation format:
  * - https://perldoc.perl.org/perlpod.html
  * - https://perldoc.perl.org/perlpodspec.html
