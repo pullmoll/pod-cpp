@@ -991,7 +991,13 @@ std::string PodNodeInlineMarkupStart::ToHTML() const
                 bool is_cmethod = link_target[pos] == ':';
                 std::string classmodname = link_target.substr(0, pos);
                 std::string methodname   = link_target.substr(is_cmethod ? pos+2 : pos+1);
-                return std::string("<a href=\"") + m_filename_cb(classmodname) + "#" + m_mname_cb(is_cmethod, methodname) + "\">";
+
+                if (classmodname.empty()) { // Link to method doc in thid document
+                    return std::string("<a href=\"#") + m_mname_cb(is_cmethod, methodname) + "\">";
+                }
+                else { // Link to method doc in different document
+                    return std::string("<a href=\"") + m_filename_cb(classmodname) + "#" + m_mname_cb(is_cmethod, methodname) + "\">";
+                }
             }
             else { // Variant 1
                 // Split class/module name off section link at the slash, if present.
