@@ -21,10 +21,11 @@ public:
 class PodNodeHeadStart: public PodNode
 {
 public:
-    PodNodeHeadStart(int level);
+    PodNodeHeadStart(int level, std::string content); // content is for ID generation
     virtual std::string ToHTML() const;
 private:
     int m_level;
+    std::string m_content;
 };
 
 class PodNodeHeadEnd: public PodNode
@@ -173,6 +174,7 @@ public:
     // "index heading" => "insert_anchor_name"
     inline const std::map<std::string, std::string> GetIndexEntries() const { return m_idx_keywords; }
 
+    static std::string MakeHeadingAnchorName(const std::string& title);
 private:
     void parse_line(const std::string& line);
     void parse_command(std::string command);

@@ -148,23 +148,23 @@ void PodParser::parse_command(std::string command)
 
     // Execute the command
     if (cmd == "head1") {
-        m_tokens.push_back(new PodNodeHeadStart(1));
-        parse_inline(command.substr(cmd.length()+1));
+        m_tokens.push_back(new PodNodeHeadStart(1, command.substr(cmd.length()+2)));
+        parse_inline(command.substr(cmd.length()+2));
         m_tokens.push_back(new PodNodeHeadEnd(1));
     }
     else if (cmd == "head2") {
-        m_tokens.push_back(new PodNodeHeadStart(2));
-        parse_inline(command.substr(cmd.length()+1));
+        m_tokens.push_back(new PodNodeHeadStart(2, command.substr(cmd.length()+2)));
+        parse_inline(command.substr(cmd.length()+2));
         m_tokens.push_back(new PodNodeHeadEnd(2));
     }
     else if (cmd == "head3") {
-        m_tokens.push_back(new PodNodeHeadStart(3));
-        parse_inline(command.substr(cmd.length()+1));
+        m_tokens.push_back(new PodNodeHeadStart(3, command.substr(cmd.length()+2)));
+        parse_inline(command.substr(cmd.length()+2));
         m_tokens.push_back(new PodNodeHeadEnd(3));
     }
     else if (cmd == "head4") {
-        m_tokens.push_back(new PodNodeHeadStart(4));
-        parse_inline(command.substr(cmd.length()+1));
+        m_tokens.push_back(new PodNodeHeadStart(4, command.substr(cmd.length()+2)));
+        parse_inline(command.substr(cmd.length()+2));
         m_tokens.push_back(new PodNodeHeadEnd(4));
     }
     else if (cmd == "pod") {
@@ -582,6 +582,26 @@ void PodParser::zap_tokens()
     }
 }
 
+/**
+ * Processes `title' so that it can be used for an HTML A tag's
+ * NAME attribute. The result is returned.
+ */
+std::string PodParser::MakeHeadingAnchorName(const std::string& title)
+{
+    std::string result;
+    for (size_t i=0; i < title.length(); i++) {
+        if (title[i] >= '0' && title[i] <= '9')
+            result += title[i];
+        else if (title[i] >= 'A' && title[i] <= 'Z')
+            result += title[i];
+        else if (title[i] >= 'a' && title[i] <= 'z')
+            result += title[i];
+        else
+            result += '-';
+    }
+    return result;
+}
+
 /***************************************
  * Formatter
  **************************************/
@@ -606,14 +626,15 @@ std::string PodHTMLFormatter::FormatHTML()
  * Pod nodes
  **************************************/
 
-PodNodeHeadStart::PodNodeHeadStart(int level)
-    : m_level(level)
+PodNodeHeadStart::PodNodeHeadStart(int level, std::string content)
+    : m_level(level),
+      m_content(content)
 {
 }
 
 std::string PodNodeHeadStart::ToHTML() const
 {
-    return std::string("<h" + std::to_string(m_level) + ">");
+    return std::string("<h" + std::to_string(m_level) + " id=\"" + PodParser::MakeHeadingAnchorName(m_content) + "\">");
 }
 
 PodNodeHeadEnd::PodNodeHeadEnd(int level)
