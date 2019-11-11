@@ -733,26 +733,6 @@ std::string PodParser::MakeHeadingAnchorName(const std::string& title)
 }
 
 /***************************************
- * Formatter
- **************************************/
-
-PodHTMLFormatter::PodHTMLFormatter(const std::vector<PodNode*>& tokens)
-    : m_tokens(tokens)
-{
-}
-
-std::string PodHTMLFormatter::FormatHTML()
-{
-    std::string result;
-
-    for (const PodNode* p_node: m_tokens) {
-        result += p_node->ToHTML();
-    }
-
-    return result;
-}
-
-/***************************************
  * Pod nodes
  **************************************/
 
@@ -1097,6 +1077,21 @@ void PodNodeVerbatim::AddText(std::string text)
 std::string PodNodeVerbatim::ToHTML() const
 {
     return std::string("<pre>") + m_text + std::string("</pre>\n");
+}
+
+/***************************************
+ * Formatter
+ **************************************/
+
+std::string Pod::FormatHTML(const std::vector<PodNode*>& tokens)
+{
+    std::string result;
+
+    for (const PodNode* p_node: tokens) {
+        result += p_node->ToHTML();
+    }
+
+    return result;
 }
 
 /***************************************

@@ -63,8 +63,16 @@ method on all of them in order to transform the tokens into HTML:
         std::cout << p_token->ToHTML();
     }
 
-This is going to dump the entire HTML for all the tokens to the
-standard output. Note there is no need to manually insert newlines.
+If this is the entire processing required, a convenience function
+Pod::FormatHTML() exists that takes the token list as returned
+by PodParser::GetTokens() and does the exact same thing like
+the snippet above.
+
+    std::cout << Pod::FormatHTML(parser.GetTokens());
+
+Either way, this is going to dump the entire HTML for all the tokens
+to the standard output. Note there is no need to manually insert
+newlines between tokens. This is taken care of where necessary.
 
                     - Limitations and Extensions -
 

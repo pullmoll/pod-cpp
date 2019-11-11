@@ -257,14 +257,9 @@ private:
     std::string m_link_content;
 };
 
-class PodHTMLFormatter
-{
-public:
-    PodHTMLFormatter(const std::vector<PodNode*>& tokens);
-    std::string FormatHTML();
-private:
-    const std::vector<PodNode*>& m_tokens;
-};
+/// A function that calls ToHTML() on each token in `tokens',
+/// acculumates the results and returns them as one string.
+std::string FormatHTML(const std::vector<PodNode*>& tokens);
 
 // Counts the leading spaces and tabs in +str+.
 size_t count_leading_whitespace(const std::string& str);
