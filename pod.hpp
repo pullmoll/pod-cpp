@@ -242,7 +242,7 @@ private:
     long m_lino;
     mode m_mode;
     bool m_link_bar_found;
-    const std::string& m_source_markup;
+    std::string m_source_markup;
     std::string (*m_filename_cb)(std::string);
     std::string (*m_mname_cb)(bool, std::string);
     size_t m_verbatim_lead_space;
