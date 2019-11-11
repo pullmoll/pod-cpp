@@ -1,0 +1,100 @@
+                              POD Parser
+                                in C++
+
+This is a parser for Perl's POD markup language (see
+<https://perldoc.perl.org/perlpodspec.html>), entirely written in C++.
+
+This project is developed mainly for use for the generation of the
+scripting API docs of The Secret Chronicles of Dr. M. (TSC; see
+https://secretchronicles.org), but has been extracted into its own
+project as it turned out to be a little more than a simple parser for
+simple markup language. As a result of this history, the parser
+is written to be used in the context of HTML generation. If you need
+to generate something other than HTML, take a look at the ToHTML()
+methods of the various PodNode subclasses and implement similar
+ToYourOutput() methods yourself.
+
+                            - How to use -
+
+The C++ POD parser is written in C++11 and has no external
+dependencies. It is recommended to insert the two files directly into
+your project, but a simple Makefile is provided for building it as a
+library.
+
+Include the header:
+
+    #include "pod.hpp"
+
+Write a function that tells the parser how a file name looks like for
+any given class or module name:
+
+    std::string filename_cb(std::string classmodname)
+    {
+        return classmodname + ".html";
+    }
+
+Write another function that tells the parser how an HTML A tag's @name
+tag looks like if given a method name and the information about
+whether it's a class or module method:
+
+    std::string methodname_cb(bool cmethod, std::string methodname)
+    {
+        return cmethod ? methodname + "-cm" : methodname + "-im";
+    }
+
+Then, instanciate the parser with the string to parse and start
+the parsing process:
+
+    PodParser parser("=head1 The title\n\nLorem ipsum dolor sit amet\n",
+                     filename_cb, methodname_cb);
+    parser.parse();
+
+It is then possible to retrieve the list of parsed tokens (which are
+all subclasses of PodNode) and call the virtual PodNode::ToHTML()
+method on all of them in order to transform the tokens into HTML:
+
+    const std::vector<PodNode*> tokens = parser.GetTokens();
+    for(const PodNode* p_token: tokens) {
+        std::cout << p_token->ToHTML();
+    }
+
+This is going to dump the entire HTML for all the tokens to the
+standard output. Note there is no need to manually insert newlines.
+
+                    - Limitations and Extensions -
+
+This parser is not entirely compliant with the POD specification. The
+most significant diversion is probably that it is not valid to use any
+kind of formatting code inside the link target of the L<> formatting
+code, especially not the E<> code.
+
+That being said, the parser is good enough to process TSC's scripting
+API documentation, which is its primary purpose. If not given too
+complicated markup, there should be no problem.
+
+TSC's scripting API is an object-oriented Ruby API. Therefore, the POD
+markup has been slightly extended to support typical Ruby API methods,
+which manifests itself in a modified behaviour of the L<> code. As
+with ordinary POD, an L<> formatting code without a bar (|) means an
+internal link to another object in the same documentation. Format
+L<Object/Section> can also be used as normal. However, additionally,
+it is possible to use an L<> code with one of the following two forms:
+
+1. L<Object#imethod> creates an internal link to the instance method
+   `imethod' of the class or module `Object'.
+2. L<Object::cmethod> creates an internal link to the class or module
+   method `cmethod' of the class or module `Object'.
+
+These two extensions can also be used with explicit link text, e.g.:
+
+    L<explicit link text|Object#imethod>
+
+Problems with obscure markup may be reported, but depending on the
+complexity of the problem might not be fixed if there is no chance
+that this markup occurs in TSC's scripting API documentation.
+
+                        - Legal Information -
+
+This parser has been written by Marvin Gülker, Unna (Germany, EU).
+It is licensed under the 2-clause BSD license. The exact license text
+can be found in the file LICENSE.
