@@ -585,7 +585,7 @@ PodNodeItemStart* PodParser::find_preceeding_item() {
     for(auto iter=m_tokens.rbegin(); iter != m_tokens.rend(); iter++) {
         if (dynamic_cast<PodNodeBack*>(*iter))
             level++;
-        else if (level > 0 && dynamic_cast<PodNodeOver*>(*iter)) // >0 to ignore opening =over of current list
+        else if (dynamic_cast<PodNodeOver*>(*iter))
             level--;
         else if (level == 0 && (p_item = dynamic_cast<PodNodeItemStart*>(*iter)))
             return p_item;         //  ^ Single "=" intended
