@@ -175,7 +175,7 @@ void PodParser::parse_line(const std::string& line)
         case '\0': // Empty line, ignore
             break;
         case '=': // Command encountered
-            m_current_buffer = line;
+            m_current_buffer = line + " "; // Replace end-of-line newline with space
             m_mode = mode::command;
             break;
         case ' ':  // fall-through
