@@ -905,7 +905,7 @@ void PodNodeInlineText::AddText(char ch) {
 }
 
 void PodNodeInlineText::StripTrailingWhitespace() {
-    while (m_text[m_text.length()-1] == ' ') {
+    while (!m_text.empty() && m_text[m_text.length()-1] == ' ') {
         m_text = m_text.substr(0, m_text.length() - 1);
     }
 }
